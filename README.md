@@ -1,6 +1,5 @@
 <div align="center">
-  <h1>INKBOUND</h1>
-  <p><strong>Minimal luxury bookstore for books, manga, light novels, and graphic novels.</strong></p>
+  <img src="preview.png" alt="Inkbound bookstore preview" width="100%" />
 </div>
 
 <br />

@@ -1,0 +1,7 @@
+node_modules/
+backend/.env
+.DS_Store
+*.log
+frontend/images/*.jpg
+frontend/images/*.jpeg
+frontend/images/*.webp

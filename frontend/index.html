@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Inkbound — Books, Manga, Light Novels & Graphic Novels." />
+  <title>Inkbound — Your Bookstore</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,500..900,30..100&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('inkbound_theme') || 'dark');
+  </script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!--Header -->
+<header class="site-header" role="banner">
+  <div class="logo">Ink<span>bound</span></div>
+  <div class="search-bar" id="searchBar">
+    <span class="search-icon" aria-hidden="true"></span>
+    <input type="search" id="searchInput" class="search-input" placeholder="Search titles or authors..." oninput="debouncedSearch(this.value)" aria-label="Search products" autocomplete="off" />
+    <button class="search-clear" id="searchClear" onclick="clearSearch()" aria-label="Clear search">✕</button>
+    <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+  </div>
+  <div class="header-right">
+    <!-- Auth area: shows Login/Register button when logged out, username + logout when logged in -->
+    <div id="authHeaderArea"></div>
+    <!-- Theme toggle -->
+    <button class="theme-toggle" id="themeToggle" onclick="handleThemeToggle()" aria-label="Toggle light/dark mode" title="Toggle theme">
+      <span class="theme-icon" id="themeIcon">☀</span>
+    </button>
+    <button class="cart-toggle-btn" onclick="toggleMobileCart()" aria-label="Open cart">
+      Cart <span class="cart-badge" id="cartBadge" aria-live="polite">0</span>
+    </button>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero" aria-label="Welcome">
+  <div class="hero-overlay">
+    <p class="hero-label">Independent shelves for curious readers</p>
+    <h1>Find your next obsession.</h1>
+    <p class="hero-sub">A curated bookshop for novels, manga, light novels and graphic novels, with fast search and genre-first browsing.</p>
+    <div class="hero-actions" aria-label="Store highlights">
+      <span><strong>500+</strong> titles</span>
+      <span><strong>24</strong> genres</span>
+      <span><strong>4</strong> collections</span>
+    </div>
+  </div>
+</section>
+
+<!-- Main items  -->
+<div class="page-body">
+
+  <!--  Filter Sidebar  -->
+  <aside class="filter-sidebar" aria-label="Filter products">
+    <div class="sidebar-header">
+      <span>Browse</span>
+      <button class="sidebar-clear" onclick="handleClearFilter()">Clear</button>
+    </div>
+
+    <!-- Active filter pill -->
+    <div class="active-filter-pill" id="activeFilterPill">
+      <span id="pillText"></span>
+      <button class="pill-clear" onclick="handleClearFilter()" aria-label="Clear filter">✕</button>
+    </div>
+
+    <div class="sidebar-body" id="sidebarBody">
+    </div>
+  </aside>
+
+
+  <!--  Products  -->
+  <section aria-labelledby="sectionHeadingText">
+    <div class="section-heading">
+      <span id="sectionHeadingText" class="section-heading-text">All Titles</span>
+      <span id="sectionHeadingCount" class="section-heading-count"></span>
+      <div class="sort-controls">
+        <select id="sortSelect" class="sort-select" onchange="handleSortChange(this.value)">
+          <option value="title">A – Z</option>
+          <option value="price_asc">Price ↑</option>
+          <option value="price_desc">Price ↓</option>
+          <option value="rating">Top Rated</option>
+          <option value="newest">Newest</option>
+        </select>
+      </div>
+    </div>
+    <div class="product-grid" id="productGrid" role="list" aria-label="Products">
+    </div>
+    <div id="loadMoreContainer" class="load-more-container" style="display:none">
+      <button class="load-more-btn" id="loadMoreBtn" onclick="handleLoadMore()">Load More</button>
+    </div>
+  </section>
+
+
+  <!--  Cart Panel  -->
+  <aside id="cartPanel" class="cart-panel" role="complementary" aria-label="Shopping cart">
+
+    <div class="cart-head">
+      <span class="cart-head-title">Your Cart</span>
+      <button class="cart-clear-btn" onclick="handleClearCart()">Clear all</button>
+    </div>
+
+    <div class="cart-error" id="cartError" role="alert" aria-live="assertive"></div>
+
+    <div class="cart-empty" id="cartEmpty" aria-live="polite">
+      <p>Your cart is empty.<br/>Browse and add some titles!</p>
+    </div>
+
+    <div class="cart-items" id="cartItems" style="display:none" aria-live="polite">
+    </div>
+
+    <div class="cart-foot">
+      <div class="cart-summary-row">
+        <span id="cartItemCount">0 items</span>
+        <span>Free shipping over $35</span>
+      </div>
+      <div class="cart-total-row">
+        <span class="cart-total-label">Total</span>
+        <span class="cart-total-amt" id="cartTotal" aria-live="polite">$0.00</span>
+      </div>
+      <button id="checkoutBtn" class="checkout-btn" disabled onclick="handleCheckout()">
+        Proceed to Checkout →
+      </button>
+    </div>
+
+  </aside>
+
+</div>
+
+
+<!-- Admin panel — hidden by default, shown when admin clicks "Admin" button -->
+<div id="adminPanel" style="display:none" role="main" aria-label="Admin panel"></div>
+
+
+<!-- Auth modal — Login / Register -->
+<div id="authModal" class="auth-modal-overlay" role="dialog" aria-modal="true"
+     aria-label="Login or Register" aria-hidden="true">
+  <div class="auth-modal">
+    <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close">✕</button>
+    <div id="authModalBody"></div>
+  </div>
+</div>
+
+
+<!-- Product detail modal -->
+<div id="modalOverlay" class="modal-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="modalTitle" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-top">
+<div id="modalCover" class="modal-cover">
+  <img id="modalImageUrl" src="" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" />
+</div>
+      <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
+    </div>
+    <div>
+      <span id="modalCatBadge"  class="modal-cat-badge"></span>
+      <span id="modalGenre"     class="modal-genre"></span>
+    </div>
+    <h2 id="modalTitle"  class="modal-title">Title</h2>
+<p id="modalAuthor" class="modal-author">Author</p>
+<div id="modalRating" class="modal-rating" style="display:none"></div>
+<p id="modalDesc"   class="modal-desc">Description</p>
+    <div class="modal-footer">
+      <span id="modalPrice" class="modal-price">$0.00</span>
+      <button id="modalAddBtn" class="modal-add-btn" data-product-id="">+ Add to Cart</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- mobile cart drawer overloay -->
+<div id="cartDrawerOverlay" class="cart-drawer-overlay" aria-hidden="true"></div>
+
+
+<!-- Wishlist modal -->
+<div id="wishlistModal" class="side-modal-overlay" aria-hidden="true">
+  <div class="side-modal">
+    <div class="side-modal-head">
+      <span>Wishlist</span>
+      <button onclick="closeWishlist()" class="side-modal-close">✕</button>
+    </div>
+    <div id="wishlistBody" class="side-modal-body"></div>
+  </div>
+</div>
+
+<!-- Order history modal -->
+<div id="ordersModal" class="side-modal-overlay" aria-hidden="true">
+  <div class="side-modal">
+    <div class="side-modal-head">
+      <span>Order History</span>
+      <button onclick="closeOrders()" class="side-modal-close">✕</button>
+    </div>
+    <div id="ordersBody" class="side-modal-body"></div>
+  </div>
+</div>
+
+<!-- Confirmation dialog -->
+<div id="confirmOverlay" class="confirm-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="confirmTitle" aria-hidden="true">
+  <div class="confirm-dialog">
+    <p class="confirm-kicker" id="confirmKicker">Confirm</p>
+    <h2 class="confirm-title" id="confirmTitle">Are you sure?</h2>
+    <p class="confirm-message" id="confirmMessage">Please confirm this action.</p>
+    <div class="confirm-actions">
+      <button id="confirmCancelBtn" class="confirm-btn confirm-cancel" type="button">Cancel</button>
+      <button id="confirmAcceptBtn" class="confirm-btn confirm-accept" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- toast  -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+
+<!-- Scripts: api -> ui -> app -->
+<script src="js/catalog.js"></script>
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

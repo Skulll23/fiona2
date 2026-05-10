@@ -3,6 +3,12 @@
 const API_BASE = window.location.protocol === 'file:'
   ? 'http://localhost:3000/api'
   : '/api';
+const ALLOW_STATIC_FALLBACK = window.INKBOUND_ALLOW_STATIC_FALLBACK === true;
+
+function clearStaticSession() {
+  localStorage.removeItem('inkbound_token');
+  localStorage.removeItem('inkbound_user');
+}
 
 // ── Session ────────────────────────────────────────────────────
 // When logged in:  use a stable user-specific key so every user has
@@ -35,11 +41,22 @@ function getSessionId() {
 }
 
 // ── Auth token helpers (JWT stored in localStorage) ──────────
-function getToken()      { return localStorage.getItem('inkbound_token'); }
+function getToken() {
+  const token = localStorage.getItem('inkbound_token');
+  if (token?.startsWith('static-token-')) {
+    clearStaticSession();
+    return null;
+  }
+  return token;
+}
 function setToken(t)     { localStorage.setItem('inkbound_token', t); }
 function removeToken()   { localStorage.removeItem('inkbound_token'); }
 
 function getStoredUser() {
+  if (localStorage.getItem('inkbound_token')?.startsWith('static-token-')) {
+    clearStaticSession();
+    return null;
+  }
   try { return JSON.parse(localStorage.getItem('inkbound_user') || 'null'); }
   catch { return null; }
 }
@@ -65,8 +82,10 @@ async function apiFetch(endpoint, options = {}) {
     if (!res.ok) throw new Error(json.message || `Request failed (${res.status})`);
     return json;
   } catch (err) {
-    const fallback = staticApiFetch(endpoint, config);
-    if (fallback) return fallback;
+    if (ALLOW_STATIC_FALLBACK) {
+      const fallback = staticApiFetch(endpoint, config);
+      if (fallback) return fallback;
+    }
     throw err;
   }
 }

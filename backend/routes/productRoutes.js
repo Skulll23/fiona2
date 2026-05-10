@@ -13,7 +13,7 @@ router.get('/autocomplete', async (req, res) => {
     if (!q) return res.json({ success: true, data: [] });
     const like = `%${q}%`;
     const [rows] = await db.query(
-      `SELECT id, title, author FROM products
+      `SELECT id, title, author, image_url FROM products
        WHERE title LIKE ? OR author LIKE ?
        ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title
        LIMIT 8`,
@@ -30,6 +30,7 @@ router.get('/', async (req, res) => {
       categoryId, genreId, search,
       sort = 'title',
       minPrice, maxPrice,
+      minRating, availability, author,
       page = 1, limit = 24,
     } = req.query;
 
@@ -42,8 +43,12 @@ router.get('/', async (req, res) => {
       conditions.push('(p.title LIKE ? OR p.author LIKE ?)');
       params.push(`%${search}%`, `%${search}%`);
     }
+    if (author) { conditions.push('p.author LIKE ?'); params.push(`%${author}%`); }
     if (minPrice) { conditions.push('p.price >= ?'); params.push(parseFloat(minPrice)); }
     if (maxPrice) { conditions.push('p.price <= ?'); params.push(parseFloat(maxPrice)); }
+    if (minRating) { conditions.push('COALESCE(p.goodreads_rating, 0) >= ?'); params.push(parseFloat(minRating)); }
+    if (availability === 'available') conditions.push('p.stock > 0');
+    if (availability === 'low') conditions.push('p.stock > 0 AND p.stock <= 12');
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -53,6 +58,7 @@ router.get('/', async (req, res) => {
       price_desc: 'p.price DESC',
       rating:     'p.goodreads_rating DESC',
       newest:     'p.created_at DESC',
+      popularity: 'COALESCE(p.goodreads_rating, 0) DESC, p.stock DESC',
     };
     const orderBy = sortMap[sort] || 'p.title ASC';
 

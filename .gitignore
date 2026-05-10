@@ -2,6 +2,7 @@ node_modules/
 backend/.env
 .DS_Store
 *.log
+graphify-out/cache/
 frontend/images/*.jpg
 frontend/images/*.jpeg
 frontend/images/*.webp

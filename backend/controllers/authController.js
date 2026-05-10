@@ -73,6 +73,9 @@ const AuthController = {
         // Return same message for both "no account" and "wrong password" — prevents user enumeration
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
+      if (user.disabled) {
+        return res.status(403).json({ success: false, message: 'This account has been disabled' });
+      }
 
       // bcrypt.compare hashes the input and compares — never compare plain text passwords
       const valid = await bcrypt.compare(password, user.password_hash);

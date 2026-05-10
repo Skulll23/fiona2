@@ -8,7 +8,7 @@
 
 Most online bookstores separate readers into narrow shelves: novels in one place, manga in another, light novels somewhere else, and graphic novels treated like an afterthought. Inkbound solves this by giving every format a single curated storefront with fast search, genre-first browsing, saved carts, order history, and a polished black-and-white luxury interface.
 
-It is a full-stack e-commerce Single Page Application built with vanilla frontend code, an Express/MySQL backend, and a static fallback mode so the storefront still works directly from `frontend/index.html` without running the server.
+It is a full-stack e-commerce Single Page Application built with a React-enhanced frontend, an Express/MySQL backend, and a static fallback mode so the storefront still works directly from `frontend/index.html` without running the server.
 
 ---
 
@@ -16,7 +16,7 @@ It is a full-stack e-commerce Single Page Application built with vanilla fronten
 
 | Layer      | Technology                                      |
 |------------|-------------------------------------------------|
-| Frontend   | HTML5, CSS3, Vanilla JavaScript (ES6+)          |
+| Frontend   | React 18, HTML5, CSS3, JavaScript (ES6+)        |
 | Backend    | Node.js, Express 4                              |
 | Database   | MySQL 8, mysql2                                 |
 | Auth       | JWT, bcryptjs, role-based admin access          |
@@ -29,8 +29,9 @@ It is a full-stack e-commerce Single Page Application built with vanilla fronten
 ## Features
 
 - **Luxury storefront UI** — black-and-white Aurum-inspired theme, smooth light/dark transition, minimal header, responsive book grid, premium modal and cart surfaces
+- **React dashboard layer** — `react-widgets.js` uses React 18, `useReducer`, `useMemo`, and event-based state sync to render a live store intelligence panel inside the SPA
 - **500 unique titles** — real catalog entries with local book cover images, author data, category, genre, price, rating, stock, and description
-- **Category browsing** — Books, Manga/Manhwa/Manhua, Light Novels, and Graphic Novels, each with genre-specific filters
+- **Category browsing** — Books, Manga, Light Novels, and Graphic Novels, each with genre-specific filters
 - **Search and autocomplete** — fast title/author search with live suggestions and one-click selection
 - **Sorting** — A-Z, price low-high, price high-low, top rated, and newest
 - **Product detail modal** — full cover image, category badge, genre, author, rating, description, similar reads, and review area
@@ -40,6 +41,7 @@ It is a full-stack e-commerce Single Page Application built with vanilla fronten
 - **Wishlist** — save titles for later and add them to the cart from a side drawer
 - **Orders** — checkout creates saved orders, clears the cart, and shows the user’s order history
 - **Admin panel** — admin dashboard with all user carts, all orders from every account, product count, order count, users, and revenue
+- **CRUD coverage** — users, products, cart items, wishlists, reviews, and orders are created, read, updated, and/or deleted through Express routes and MySQL-backed tables
 - **Static fallback** — when opened via `file://`, `api.js` serves products, users, carts, wishlists, orders, reviews, and admin data from localStorage
 - **Accessibility** — labelled inputs, ARIA dialog roles, keyboard Escape handling, focusable product covers, and readable light/dark contrast
 - **Responsive** — mobile cart drawer, two-column mobile product cards, adaptive hero, and tablet/desktop grid layouts
@@ -77,9 +79,11 @@ fiona2/
 │   │   ├── migrate.js             # Database migration runner
 │   │   └── seedBooks*.js          # Seed scripts
 │   ├── server.js                  # Express app entry
+│   ├── .env.example               # Safe environment template
 │   └── package.json
 ├── database/
 │   ├── schema.sql                 # MySQL schema and seed data
+│   ├── catalog_export.json        # Full 500-title JSON export
 │   └── migrate_add_auth.sql       # Auth/order-related migration
 ├── frontend/
 │   ├── css/
@@ -91,7 +95,9 @@ fiona2/
 │   │   ├── api.js                 # Backend API client + static fallback API
 │   │   ├── app.js                 # App state, event handlers, checkout flow
 │   │   ├── catalog.js             # Static 500-title catalog
+│   │   ├── react-widgets.js       # React 18 dashboard island
 │   │   └── ui.js                  # DOM rendering, modals, admin, confirmations
+│   ├── package.json               # React dependency declaration
 │   └── index.html                 # Single-page storefront
 ├── graphify-out/                  # Local code graph output
 ├── .gitignore
@@ -113,14 +119,9 @@ npm install
 ```
 
 ### 2. Configure environment
-Create `backend/.env`:
+Copy the example file and replace the placeholders:
 ```bash
-PORT=3000
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=inkbound
-JWT_SECRET=replace_with_a_long_secret
+cp backend/.env.example backend/.env
 ```
 
 ### 3. Create and seed the database
@@ -155,7 +156,7 @@ The frontend calls `/api` when the backend is available. If opened directly as a
 
 ## Demo Accounts
 
-Static fallback mode includes an admin account:
+Static fallback mode includes a demo admin account for marking and walkthroughs only:
 
 ```text
 Email:    admin@inkbound.com
@@ -163,6 +164,38 @@ Password: admin123
 ```
 
 Normal users can be created from the Login / Register modal. Their carts, wishlists, and orders are saved in localStorage when using static mode.
+
+The submitted repository does not track `backend/.env`; real secrets belong only in local environment files.
+
+---
+
+## Assignment Criteria Coverage
+
+| Requirement | Inkbound implementation |
+|-------------|-------------------------|
+| Modern frontend library | React 18 is used in `frontend/js/react-widgets.js` for the live store dashboard; the rest of the SPA is coordinated through modular JavaScript files. |
+| Single-page app behavior | `frontend/index.html` is the only HTML page; the app rewrites views, modals, drawers, filters, admin screens, carts, and orders without page reloads. |
+| Backend + database | Node.js/Express routes work with MySQL tables declared in `database/schema.sql`. |
+| User auth | Registration/login use bcrypt password hashing and JWT tokens, with admin role checks in middleware. |
+| Live search | The search bar filters the catalog in real time and shows autocomplete suggestions with cover thumbnails. |
+| CRUD on at least three entities | Products have admin create/read/update/delete; carts have add/read/update/delete/clear; users have create/read/update/disable; wishlists, reviews, and orders add more database-backed entities. |
+| Admin profile/business logic | Admin can view all registered users, current carts, all orders from all accounts, reviews, product inventory, analytics, revenue, and low-stock alerts. |
+| Seamless interface | Checkout, confirmations, theme switching, quick view, wishlist, order history, command palette, and admin actions run in-place. |
+| Database export | `database/schema.sql` creates the full schema; `database/migrate_add_auth.sql` upgrades an older database without dropping existing data. |
+
+---
+
+## Workload Allocation
+
+This submission is being completed individually by **Arpit Goyal**.
+
+| Area | Files |
+|------|-------|
+| Frontend SPA and interaction logic | `frontend/index.html`, `frontend/js/app.js`, `frontend/js/ui.js`, `frontend/js/api.js`, `frontend/js/react-widgets.js` |
+| Visual design and responsive UI | `frontend/css/style.css`, `preview.png` |
+| Catalog and assets | `frontend/js/catalog.js`, `frontend/images/`, `backend/scripts/fetchCovers.js`, `backend/scripts/seedBooks*.js` |
+| Backend/API/database | `backend/server.js`, `backend/routes/`, `backend/controllers/`, `backend/models/`, `backend/middleware/`, `database/schema.sql`, `database/migrate_add_auth.sql` |
+| Documentation/submission material | `README.md`, `.gitignore`, `backend/.env.example` |
 
 ---
 
@@ -180,9 +213,13 @@ Normal users can be created from the Login / Register modal. Their carts, wishli
 
 **Minimal Luxury UI Pass** — The interface went through several stacked CSS iterations. The final pass added a consistent token system, restrained surfaces, book-focused product cards, custom confirmation dialogs, improved responsive behavior, and an Aurum-inspired black-and-white visual direction.
 
+**Modern Frontend Library Compliance** — The storefront remains a one-page app, but a React 18 dashboard island was added for assignment compliance and technical design discussion. It uses `useReducer` for synchronized app state, `useMemo` for derived catalog metrics, and event listeners to avoid unnecessary full-page rerenders.
+
 ---
 
 ## Database Export
+
+`database/schema.sql` contains tables for categories, genres, products, users, cart items, wishlists, orders, order items, and reviews. The full 500-title export is included as `database/catalog_export.json`, and the same catalog powers the offline demo path in `frontend/js/catalog.js`.
 
 To export the MySQL database for submission or backup:
 ```bash

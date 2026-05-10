@@ -1,12 +1,12 @@
-# Graph Report - /Users/arpitgoyal/Desktop/fiona2  (2026-05-08)
+# Graph Report - /Users/arpitgoyal/Desktop/fiona2  (2026-05-11)
 
 ## Corpus Check
-- 27 files · ~1,676,858 words
+- 28 files · ~1,725,637 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 167 nodes · 316 edges · 31 communities detected
-- Extraction: 74% EXTRACTED · 26% INFERRED · 0% AMBIGUOUS · INFERRED: 82 edges (avg confidence: 0.8)
+- 226 nodes · 475 edges · 31 communities detected
+- Extraction: 75% EXTRACTED · 25% INFERRED · 0% AMBIGUOUS · INFERRED: 121 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -43,58 +43,58 @@
 - [[_COMMUNITY_Community 30|Community 30]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `apiFetch()` - 28 edges
-2. `staticApiFetch()` - 17 edges
-3. `loadProducts()` - 13 edges
-4. `showToast()` - 12 edges
-5. `handleLogin()` - 12 edges
-6. `handleRegister()` - 9 edges
-7. `renderCart()` - 8 edges
-8. `handleLogout()` - 8 edges
-9. `renderSkeletons()` - 7 edges
-10. `openModal()` - 7 edges
+1. `apiFetch()` - 36 edges
+2. `staticApiFetch()` - 20 edges
+3. `showToast()` - 19 edges
+4. `loadProducts()` - 17 edges
+5. `emitAppSnapshot()` - 13 edges
+6. `handleLogin()` - 13 edges
+7. `openAdminPanel()` - 12 edges
+8. `renderSkeletons()` - 10 edges
+9. `renderCart()` - 10 edges
+10. `handleRegister()` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `showToast()` --calls--> `handleAddToCart()`  [INFERRED]
   /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
-- `showToast()` --calls--> `handleWishlistToggle()`  [INFERRED]
+- `showToast()` --calls--> `handleCheckout()`  [INFERRED]
+  /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
+- `showToast()` --calls--> `submitCheckout()`  [INFERRED]
   /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
 - `showToast()` --calls--> `handleSubmitReview()`  [INFERRED]
   /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
 - `showToast()` --calls--> `handleDeleteReview()`  [INFERRED]
   /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
-- `showToast()` --calls--> `handleRegister()`  [INFERRED]
-  /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
 
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.16
-Nodes (27): buildStaticCart(), currentStaticUserFromToken(), defaultStaticUsers(), generateUUID(), getSessionId(), getStoredUser(), getToken(), hasStaticCatalog() (+19 more)
+Cohesion: 0.1
+Nodes (31): fetchCategories(), applyCategoryBySlug(), applyCollection(), applySavedFilterCollection(), clearAdvancedFilters(), clearSearch(), closeAutocomplete(), closeCommandPalette() (+23 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.13
-Nodes (17): fetchCategories(), fetchProducts(), clearSearch(), closeAutocomplete(), handleCategoryClick(), handleClearFilter(), handleGenreClick(), handleLoadMore() (+9 more)
+Cohesion: 0.1
+Nodes (36): addToWishlist(), apiCreateAdminProduct(), apiDeleteAdminProduct(), apiFetch(), apiGetAdminProducts(), apiGetAdminReviews(), apiGetAdminUsers(), apiGetAllOrders() (+28 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.12
-Nodes (20): deleteReview(), fetchOrders(), fetchReviews(), fetchSimilar(), submitReview(), handleDeleteReview(), handleSubmitReview(), openAuthModal() (+12 more)
+Cohesion: 0.08
+Nodes (27): fetchOrders(), fetchWishlist(), placeOrder(), calculateCheckoutTotals(), closeCheckout(), handleCheckout(), openAuthModal(), openCheckout() (+19 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.18
-Nodes (14): addToWishlist(), apiFetch(), apiGetAllOrders(), apiGetAllUserCarts(), apiGetAnalytics(), apiGetMe(), apiLogin(), fetchAutocomplete() (+6 more)
+Cohesion: 0.14
+Nodes (31): buildStaticCart(), currentStaticUserFromToken(), defaultStaticUsers(), generateUUID(), getSessionId(), getStoredUser(), getToken(), hasStaticCatalog() (+23 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.24
-Nodes (13): clearCart(), removeCartItem(), removeStoredUser(), removeToken(), handleCheckout(), handleClearCart(), handleLogout(), handleRemoveItem() (+5 more)
+Cohesion: 0.14
+Nodes (21): addToCart(), apiLogin(), apiRegister(), fetchCart(), fetchWishlistIds(), setStoredUser(), setToken(), cartProductIds() (+13 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.25
-Nodes (11): apiRegister(), fetchCart(), fetchWishlistIds(), setStoredUser(), setToken(), closeAuthModal(), handleLogin(), handleRegister() (+3 more)
+Cohesion: 0.22
+Nodes (11): deleteReview(), fetchReviews(), fetchSimilar(), submitReview(), handleDeleteReview(), handleSubmitReview(), openModal(), rememberRecentlyViewed() (+3 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.33
-Nodes (6): addToCart(), fetchWishlist(), cartProductIds(), handleAddToCart(), openWishlist(), renderWishlist()
+Cohesion: 0.5
+Nodes (2): formatMoney(), ReactAssignmentDashboard()
 
 ### Community 7 - "Community 7"
 Cohesion: 0.7
@@ -102,95 +102,95 @@ Nodes (4): fetchCoverUrl(), httpsGet(), main(), sleep()
 
 ### Community 8 - "Community 8"
 Cohesion: 0.4
-Nodes (0): 
+Nodes (0):
 
 ### Community 9 - "Community 9"
 Cohesion: 0.5
-Nodes (0): 
+Nodes (0):
 
 ### Community 10 - "Community 10"
 Cohesion: 0.5
-Nodes (0): 
+Nodes (0):
 
 ### Community 11 - "Community 11"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 12 - "Community 12"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 13 - "Community 13"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 14 - "Community 14"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 15 - "Community 15"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 16 - "Community 16"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 17 - "Community 17"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 18 - "Community 18"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 19 - "Community 19"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 20 - "Community 20"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 21 - "Community 21"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 22 - "Community 22"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 23 - "Community 23"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 24 - "Community 24"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 25 - "Community 25"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 26 - "Community 26"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 27 - "Community 27"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 28 - "Community 28"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 29 - "Community 29"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ### Community 30 - "Community 30"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (0):
 
 ## Knowledge Gaps
 - **Thin community `Community 11`** (2 nodes): `testConnection()`, `db.js`
@@ -237,17 +237,17 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `apiFetch()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 5`, `Community 6`?**
+- **Why does `openAdminPanel()` connect `Community 1` to `Community 0`, `Community 2`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Why does `loadProducts()` connect `Community 1` to `Community 4`, `Community 6`?**
-  _High betweenness centrality (0.031) - this node is a cross-community bridge._
-- **Why does `fetchProducts()` connect `Community 1` to `Community 0`, `Community 3`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+- **Why does `apiFetch()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 5`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Community 1` to `Community 0`, `Community 2`, `Community 4`, `Community 5`?**
+  _High betweenness centrality (0.029) - this node is a cross-community bridge._
+- **Are the 18 inferred relationships involving `showToast()` (e.g. with `handleAddToCart()` and `handleUpdateQty()`) actually correct?**
+  _`showToast()` has 18 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 2 inferred relationships involving `loadProducts()` (e.g. with `fetchProducts()` and `renderProducts()`) actually correct?**
   _`loadProducts()` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 11 inferred relationships involving `showToast()` (e.g. with `handleAddToCart()` and `handleUpdateQty()`) actually correct?**
-  _`showToast()` has 11 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 6 inferred relationships involving `handleLogin()` (e.g. with `apiLogin()` and `setToken()`) actually correct?**
-  _`handleLogin()` has 6 INFERRED edges - model-reasoned connections that need verification._
+- **Should `Community 0` be split into smaller, more focused modules?**
+  _Cohesion score 0.1 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.13 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1 - nodes in this community are weakly interconnected._

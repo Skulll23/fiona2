@@ -1,5 +1,7 @@
-// Static 500-title catalog built from real Open Library records with local cover images.
-window.INKBOUND_STATIC_CATALOG = {
+{
+  "exported_at": "2026-05-10T14:51:11.693Z",
+  "source": "frontend/js/catalog.js",
+  "notes": "Full static database export for assignment submission and offline fallback mode.",
   "categories": [
     {
       "id": 1,
@@ -8680,4 +8682,4 @@ window.INKBOUND_STATIC_CATALOG = {
       "stock": 48
     }
   ]
-};
+}

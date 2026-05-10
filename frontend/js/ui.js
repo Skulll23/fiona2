@@ -98,7 +98,7 @@ function renderSidebar(categories, activeFilter, onCategoryClick, onGenreClick) 
           data-cat-id="${cat.id}"
         >
           <span class="cat-dot" style="background:${catColor(cat.slug)}"></span>
-          ${escHtml(cat.name)}
+          ${escHtml(displayCategoryName(cat.name))}
           <span class="cat-chevron">▼</span>
         </button>
         <div class="genre-list ${isOpen ? 'open' : ''}" id="genreList_${cat.id}">
@@ -115,12 +115,58 @@ function renderSidebar(categories, activeFilter, onCategoryClick, onGenreClick) 
   }).join('');
 }
 
+function renderViewControls(mode = 'grid') {
+  ['grid', 'shelf', 'compact', 'spotlight'].forEach(name => {
+    document.getElementById(`${name}ViewBtn`)?.classList.toggle('active', mode === name);
+  });
+}
+
+function renderEditorialShelves({
+  byRating = [],
+  recent = [],
+  newArrivals = [],
+  trendingManga = [],
+  awardWinners = [],
+  darkAcademia = [],
+  continueShopping = [],
+} = {}) {
+  const el = document.getElementById('editorialShelves');
+  if (!el) return;
+  const shelves = [
+    { title: 'For you', label: 'Continue shopping', items: continueShopping, action: "applyCollection('continue')" },
+    { title: 'Staff picks', label: 'Critic shelf', items: byRating, action: "applyCollection('rating')" },
+    { title: 'New arrivals', label: 'Fresh in', items: newArrivals, action: "handleSortChange('newest');document.getElementById('sectionHeadingText').scrollIntoView({behavior:'smooth'})" },
+  ].filter(shelf => shelf.items.length).slice(0, 3);
+
+  if (!shelves.length) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = shelves.map(shelf => `
+    <article class="editorial-card">
+      <div class="editorial-copy">
+        <span>${escHtml(shelf.label)}</span>
+        <h2>${escHtml(shelf.title)}</h2>
+        ${shelf.action ? `<button onclick="${shelf.action}">Open shelf</button>` : '<button onclick="openCommandPalette()">Find more</button>'}
+      </div>
+      <div class="editorial-stack">
+        ${shelf.items.slice(0, 4).map((item, index) => `
+          <button class="editorial-book" style="--i:${index}" onclick="openModal(${item.id})" aria-label="Open ${escHtml(item.title)}">
+            <img src="${escHtml(cleanImageUrl(item.image_url))}" alt="${escHtml(item.title)}" onerror="this.onerror=null;this.src='images/placeholder.svg'" />
+          </button>
+        `).join('')}
+      </div>
+    </article>
+  `).join('');
+}
+
 // Update the active filter pill shown above the sidebar body
 function renderFilterPill(categoryName, genreName) {
   const pill = document.getElementById('activeFilterPill');
   const text = document.getElementById('pillText');
   if (categoryName) {
-    text.textContent = genreName ? `${categoryName} › ${genreName}` : categoryName;
+    text.textContent = genreName ? `${displayCategoryName(categoryName)} › ${genreName}` : displayCategoryName(categoryName);
     pill.classList.add('visible');
   } else {
     pill.classList.remove('visible');
@@ -128,20 +174,30 @@ function renderFilterPill(categoryName, genreName) {
 }
 
 // ── Product Grid ──────────────────────────────────────────────
-function renderProducts(products, cartIds = new Set(), wishlistIds = new Set()) {
+function renderProducts(products, cartIds = new Set(), wishlistIds = new Set(), append = false, viewMode = 'grid') {
   const grid    = document.getElementById('productGrid');
   const count   = document.getElementById('sectionHeadingCount');
 
   count.textContent = `(${products.length})`;
+  grid.classList.toggle('shelf-view', viewMode === 'shelf');
+  grid.classList.toggle('compact-view', viewMode === 'compact');
+  grid.classList.toggle('spotlight-view', viewMode === 'spotlight');
 
   if (!products.length) {
-    grid.innerHTML = '<p class="no-results">No titles found for this filter.</p>';
+    grid.innerHTML = `
+      <div class="no-results empty-card">
+        <span>No matches</span>
+        <strong>No titles found for this filter.</strong>
+        <button onclick="handleClearFilter();clearAdvancedFilters()">Reset browsing</button>
+      </div>`;
     return;
   }
 
   grid.innerHTML = products.map((p, i) => {
     const inCart = cartIds.has(p.id);
     const wished = wishlistIds.has(p.id);
+    const discounted = Number(p.id) % 9 === 0;
+    const oldPrice = discounted ? Number(p.price) * 1.18 : null;
     return `
       <article class="product-card" style="animation-delay:${i * 0.035}s" aria-label="${escHtml(p.title)}">
         <button
@@ -152,10 +208,12 @@ function renderProducts(products, cartIds = new Set(), wishlistIds = new Set()) 
           title="${wished ? 'Saved' : 'Save to wishlist'}"
         >${wished ? '♥' : '♡'}</button>
         ${Number(p.stock) <= 0 ? '<span class="out-of-stock-badge">Sold out</span>' : ''}
+        ${Number(p.stock) > 0 && Number(p.stock) <= 12 ? '<span class="low-stock-badge">Low stock</span>' : ''}
+        ${discounted ? '<span class="discount-badge">Sale</span>' : ''}
         <div
           class="card-cover"
           style="background:${p.cover_color}"
-          data-category="${escHtml(p.category_name)}"
+          data-category="${escHtml(displayCategoryName(p.category_name))}"
           data-cat-slug="${p.category_slug}"
           role="button" tabindex="0"
           onclick="openModal(${p.id})"
@@ -170,11 +228,19 @@ function renderProducts(products, cartIds = new Set(), wishlistIds = new Set()) 
             decoding="async"
             onerror="this.onerror=null;this.src='images/placeholder.svg'"
           />  
+          <div class="quick-actions">
+            <button onclick="event.stopPropagation();openModal(${p.id})">Quick view</button>
+            <button onclick="event.stopPropagation();handleWishlistToggle(${p.id})">${wished ? 'Saved' : 'Save'}</button>
+          </div>
         </div>
         <div class="card-body">
           <div class="card-genre">${escHtml(p.genre_name)}</div>
           <h3 class="card-title">${escHtml(p.title)}</h3>
           <p class="card-author">${escHtml(p.author)}</p>
+          <div class="card-meta-row">
+            <span>${Number(p.stock || 0) > 12 ? 'In stock' : Number(p.stock || 0) > 0 ? `${Number(p.stock)} left` : 'Sold out'}</span>
+            <span>${escHtml(displayCategoryName(p.category_name))}</span>
+          </div>
           ${p.goodreads_rating ? `
             <div class="card-rating">
               ${renderStars(parseFloat(p.goodreads_rating))}
@@ -182,12 +248,13 @@ function renderProducts(products, cartIds = new Set(), wishlistIds = new Set()) 
               <span class="rating-source">Goodreads</span>
             </div>` : ''}
           <div class="card-footer">
-            <span class="card-price">$${Number(p.price).toFixed(2)}</span>
+            <span class="card-price">${discounted ? `<s>$${oldPrice.toFixed(2)}</s>` : ''}$${Number(p.price).toFixed(2)}</span>
             <button
               id="addBtn_${p.id}"
               class="add-btn ${inCart ? 'in-cart' : ''}"
               onclick="handleAddToCart(${p.id})"
               aria-label="${inCart ? 'In cart' : 'Add to cart'}"
+              ${Number(p.stock || 0) <= 0 ? 'disabled' : ''}
             >${inCart ? '✓ In Cart' : '+ Add'}</button>
           </div>
         </div>
@@ -196,13 +263,19 @@ function renderProducts(products, cartIds = new Set(), wishlistIds = new Set()) 
 }
 
 // ── Cart ──────────────────────────────────────────────────────
-function renderCart(cartData) {
+function renderCart(cartData, coupon = null) {
   const { items = [], subtotal = 0, item_count = 0 } = cartData;
+  const discount = coupon ? Number((Number(subtotal) * coupon.percent).toFixed(2)) : 0;
+  const displayTotal = Math.max(0, Number(subtotal) - discount);
 
   document.getElementById('cartBadge').textContent      = item_count;
+  const mobileBadge = document.getElementById('mobileCartBadge');
+  if (mobileBadge) mobileBadge.textContent = item_count;
   document.getElementById('cartItemCount').textContent  = `${item_count} item${item_count !== 1 ? 's' : ''}`;
-  document.getElementById('cartTotal').textContent      = `$${Number(subtotal).toFixed(2)}`;
+  document.getElementById('cartTotal').textContent      = `$${displayTotal.toFixed(2)}`;
   document.getElementById('checkoutBtn').disabled       = item_count === 0;
+  const couponStatus = document.getElementById('couponStatus');
+  if (couponStatus) couponStatus.textContent = coupon ? `${coupon.code} saved $${discount.toFixed(2)}` : 'Try INK10, LUXE15, or MANGA20';
 
   const emptyEl = document.getElementById('cartEmpty');
   const itemsEl = document.getElementById('cartItems');
@@ -211,6 +284,7 @@ function renderCart(cartData) {
     emptyEl.style.display = 'flex';
     itemsEl.style.display = 'none';
     itemsEl.innerHTML = '';
+    if (couponStatus) couponStatus.textContent = '';
     return;
   }
 
@@ -230,7 +304,7 @@ function renderCart(cartData) {
   />
 </div>      <div class="cart-item-info">
         <div class="cart-item-title">${escHtml(item.title)}</div>
-        <div class="cart-item-meta">${escHtml(item.category_name)} · ${escHtml(item.genre_name)}</div>
+        <div class="cart-item-meta">${escHtml(displayCategoryName(item.category_name))} · ${escHtml(item.genre_name)}</div>
         <div class="cart-item-line">$${Number(item.line_total).toFixed(2)}</div>
       </div>
       <div class="cart-item-controls">
@@ -264,10 +338,13 @@ function openProductModal(product, inCart) {
 
   // Cover background fallback colour
   const modalCover = document.getElementById('modalCover');
-  if (modalCover) modalCover.style.background = product.cover_color;
+  if (modalCover) {
+    modalCover.style.background = product.cover_color;
+    modalCover.style.setProperty('--modal-cover-image', `url("${cleanImageUrl(product.image_url)}")`);
+  }
 
   const badge = document.getElementById('modalCatBadge');
-  badge.textContent         = product.category_name;
+  badge.textContent         = displayCategoryName(product.category_name);
   badge.dataset.cat         = product.category_slug;
   badge.className           = 'modal-cat-badge';
   badge.setAttribute('data-cat', product.category_slug);
@@ -288,6 +365,31 @@ if (product.goodreads_rating) {
 }
   document.getElementById('modalDesc').textContent   = product.description || 'No description available.';
   document.getElementById('modalPrice').textContent  = `$${Number(product.price).toFixed(2)}`;
+
+  document.querySelector('.modal-details')?.remove();
+  const details = document.createElement('div');
+  details.className = 'modal-details';
+  details.innerHTML = `
+    <div><span>Format</span><strong>${escHtml(displayCategoryName(product.category_name))}</strong></div>
+    <div><span>Stock</span><strong>${Number(product.stock || 0) > 0 ? `${Number(product.stock)} available` : 'Sold out'}</strong></div>
+    <div><span>Rating</span><strong>${product.goodreads_rating ? Number(product.goodreads_rating).toFixed(2) : 'New'}</strong></div>
+    <div><span>Code</span><strong>IB-${String(product.id).padStart(4, '0')}</strong></div>
+  `;
+  document.getElementById('modalDesc').after(details);
+  document.querySelector('.modal-preview')?.remove();
+  const preview = document.createElement('div');
+  preview.className = 'modal-preview';
+  preview.innerHTML = `
+    <div>
+      <span>Author brief</span>
+      <p>${escHtml(authorBio(product.author, displayCategoryName(product.category_name)))}</p>
+    </div>
+    <div>
+      <span>Tags</span>
+      <p>${productTags(product).map(tag => `<em>${escHtml(tag)}</em>`).join('')}</p>
+    </div>
+  `;
+  details.after(preview);
 
   const btn = document.getElementById('modalAddBtn');
   btn.dataset.productId = product.id;
@@ -321,10 +423,109 @@ function escHtml(str) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function displayCategoryName(name) {
+  return String(name || '').replace(/Manga\s*\/\s*Manhwa\s*\/\s*Manhua/gi, 'Manga');
+}
+
 // Cleans up image paths — trims spaces and removes leading slash
 function cleanImageUrl(url) {
   if (!url) return 'images/placeholder.svg';
   return url.trim().replace(/^\//, '');
+}
+
+function renderAutocomplete(items = []) {
+  const el = document.getElementById('autocompleteDropdown');
+  if (!el) return;
+  if (!items.length) {
+    el.classList.remove('open');
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = items.map(item => `
+    <button class="autocomplete-item" onclick="selectAutocomplete('${escJs(item.title)}','${escJs(item.author)}')">
+      <span class="autocomplete-thumb">
+        <img src="${escHtml(cleanImageUrl(item.image_url))}" alt="" onerror="this.onerror=null;this.src='images/placeholder.svg'" />
+      </span>
+      <span>
+        <span class="autocomplete-title">${escHtml(item.title)}</span>
+        <span class="autocomplete-author">${escHtml(item.author)}</span>
+      </span>
+    </button>
+  `).join('');
+  el.classList.add('open');
+}
+
+function escJs(str) {
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ');
+}
+
+function authorBio(author, category) {
+  const name = String(author || 'This author');
+  const format = String(category || 'books').toLowerCase();
+  if (name.toLowerCase() === 'various') {
+    return 'A collected edition shaped by multiple creators, selected for its place on the Inkbound shelf.';
+  }
+  if (format.includes('manga')) {
+    return `${name} brings panel rhythm, expressive pacing, and collector appeal to this manga selection.`;
+  }
+  if (format.includes('light')) {
+    return `${name} writes with the quick momentum and world-building pull that make light novels easy to keep reading.`;
+  }
+  if (format.includes('graphic')) {
+    return `${name} pairs visual storytelling with a strong genre hook for readers who like cinematic pages.`;
+  }
+  return `${name} is featured here for readers who want a refined, shelf-worthy title with staying power.`;
+}
+
+function productTags(product = {}) {
+  const tags = [
+    displayCategoryName(product.category_name),
+    product.genre_name,
+    Number(product.goodreads_rating || 0) >= 4.5 ? 'award pick' : '',
+    Number(product.stock || 0) <= 12 && Number(product.stock || 0) > 0 ? 'low stock' : '',
+    Number(product.price || 0) < 20 ? 'under $20' : '',
+  ].filter(Boolean);
+  return [...new Set(tags)].slice(0, 5);
+}
+
+function categoryTotals(orders = []) {
+  const totals = {};
+  orders.forEach(order => {
+    (order.items || []).forEach(item => {
+      const key = item.category_name || item.category || 'Other';
+      totals[key] = (totals[key] || 0) + Number(item.line_total || item.unit_price * item.quantity || 0);
+    });
+  });
+  const values = Object.values(totals).sort((a, b) => b - a);
+  const total = values.reduce((sum, value) => sum + value, 0) || 1;
+  return {
+    c1: Math.round(((values[0] || 0) / total) * 100),
+    c2: Math.round((((values[0] || 0) + (values[1] || 0)) / total) * 100),
+    c3: Math.round((((values[0] || 0) + (values[1] || 0) + (values[2] || 0)) / total) * 100),
+  };
+}
+
+function monthlySales(orders = []) {
+  const buckets = new Map();
+  const labels = [];
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    buckets.set(key, 0);
+    labels.push({ key, label: date.toLocaleDateString(undefined, { month: 'short' }) });
+  }
+  orders.forEach(order => {
+    const date = new Date(order.created_at || Date.now());
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (buckets.has(key)) buckets.set(key, buckets.get(key) + Number(order.total_amount || order.total || 0));
+  });
+  const max = Math.max(1, ...buckets.values());
+  return labels.map(({ key, label }) => ({
+    label,
+    total: buckets.get(key),
+    height: Math.max(8, Math.round((buckets.get(key) / max) * 100)),
+  }));
 }
 
 // Converts a decimal rating (e.g. 4.54) into coloured star HTML
@@ -358,6 +559,7 @@ function renderHeader() {
           : ''}
         <button class="nav-action-btn" onclick="openWishlist()" aria-label="Open wishlist">Wishlist</button>
         <button class="nav-action-btn" onclick="openOrders()" aria-label="Open order history">Orders</button>
+        <button class="nav-action-btn" onclick="openCommandPalette()" aria-label="Open command palette">Search</button>
         <button class="logout-btn" onclick="handleLogout()" aria-label="Logout">Logout</button>
       </div>`;
   } else {
@@ -407,13 +609,20 @@ function renderAuthModal(view) {
 
 // ── Admin Panel ───────────────────────────────────────────────
 // Renders all users, current carts, analytics, and saved orders.
-function renderAdminPanel(users = [], analytics = {}, orders = []) {
+function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) {
   const panel = document.getElementById('adminPanel');
   const userList = Array.isArray(users) ? users : [];
   const orderList = Array.isArray(orders) ? orders : [];
   const totals = analytics.totals || analytics;
+  const productList = Array.isArray(extras.products) ? extras.products : [];
+  const allUsers = Array.isArray(extras.users) ? extras.users : userList;
+  const reviewList = Array.isArray(extras.reviews) ? extras.reviews : [];
+  const categories = Array.isArray(extras.categories) ? extras.categories : [];
+  const lowStock = productList.filter(product => Number(product.stock || 0) <= 12).slice(0, 8);
+  const byCategory = categoryTotals(orderList);
+  const salesTrend = monthlySales(orderList);
 
-  if (!userList.length && !orderList.length) {
+  if (!userList.length && !orderList.length && !productList.length && !allUsers.length) {
     panel.innerHTML = `
       <div class="admin-header">
         <h2 class="admin-title">Admin</h2>
@@ -428,6 +637,7 @@ function renderAdminPanel(users = [], analytics = {}, orders = []) {
     ['Products', totals.total_products ?? totals.total_books ?? window.INKBOUND_STATIC_CATALOG?.products?.length ?? 0],
     ['Orders', totals.total_orders ?? orderList.length],
     ['Revenue', `$${Number(totals.total_revenue || 0).toFixed(2)}`],
+    ['Low Stock', lowStock.length],
   ].map(([label, value]) => `
     <div class="admin-stat-card">
       <span>${escHtml(label)}</span>
@@ -446,7 +656,13 @@ function renderAdminPanel(users = [], analytics = {}, orders = []) {
           </td>
           <td>${escHtml(order.created_at ? new Date(order.created_at).toLocaleString() : 'Recent')}</td>
           <td>${escHtml(items.map(item => `${item.title} x${item.quantity}`).join(', ') || 'No line items')}</td>
-          <td>${escHtml(order.status || 'Placed')}</td>
+          <td>
+            <select class="admin-status-select" onchange="handleAdminStatusChange(${Number(order.id || order.order_id)}, this.value)">
+              ${['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled'].map(status => `
+                <option value="${status}" ${(order.status || 'Confirmed') === status ? 'selected' : ''}>${status}</option>
+              `).join('')}
+            </select>
+          </td>
           <td class="admin-num">$${Number(order.total_amount || order.total || 0).toFixed(2)}</td>
         </tr>`;
     }).join('')
@@ -459,7 +675,7 @@ function renderAdminPanel(users = [], analytics = {}, orders = []) {
           <tr>
             <td>${escHtml(item.title)}</td>
             <td>${escHtml(item.author)}</td>
-            <td>${escHtml(item.category_name)}</td>
+            <td>${escHtml(displayCategoryName(item.category_name))}</td>
             <td class="admin-num">x${item.quantity}</td>
             <td class="admin-num">$${parseFloat(item.line_total).toFixed(2)}</td>
           </tr>`).join('')
@@ -487,6 +703,36 @@ function renderAdminPanel(users = [], analytics = {}, orders = []) {
         </table>
       </div>`;
   }).join('');
+  const productRows = productList.slice(0, 20).map(product => `
+    <tr>
+      <td>${escHtml(product.title)}</td>
+      <td>${escHtml(product.author)}</td>
+      <td><input class="admin-inline-input" value="${Number(product.price).toFixed(2)}" onchange="apiUpdateAdminProduct(${product.id},{price:this.value}).then(openAdminPanel)" /></td>
+      <td><input class="admin-inline-input" value="${Number(product.stock || 0)}" onchange="apiUpdateAdminProduct(${product.id},{stock:this.value}).then(openAdminPanel)" /></td>
+      <td><button class="admin-mini-btn danger" onclick="handleAdminProductDelete(${product.id})">Delete</button></td>
+    </tr>`).join('');
+  const categoryOptions = categories.map(cat => `<option value="${cat.id}">${escHtml(displayCategoryName(cat.name))}</option>`).join('');
+  const genreOptions = categories.flatMap(cat => cat.genres || []).map(genre => `<option value="${genre.id}">${escHtml(genre.name)}</option>`).join('');
+  const userRows = allUsers.map(user => `
+    <tr>
+      <td>${escHtml(user.username)}</td>
+      <td>${escHtml(user.email)}</td>
+      <td>
+        <select class="admin-status-select" onchange="handleAdminUserUpdate(${user.id}, 'role', this.value)">
+          <option value="user" ${user.role === 'user' ? 'selected' : ''}>user</option>
+          <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>admin</option>
+        </select>
+      </td>
+      <td><button class="admin-mini-btn" onclick="handleAdminUserUpdate(${user.id}, 'disabled', ${!user.disabled})">${user.disabled ? 'Enable' : 'Disable'}</button></td>
+    </tr>`).join('');
+  const reviewRows = reviewList.map(review => `
+    <tr>
+      <td>${escHtml(review.product?.title || `Product #${review.product_id}`)}</td>
+      <td>${escHtml(review.username || 'Reader')}</td>
+      <td>${renderStars(Number(review.rating))}</td>
+      <td>${escHtml(review.body || '')}</td>
+      <td><button class="admin-mini-btn danger" onclick="handleDeleteReview(${Number(review.id)}, ${Number(review.product_id)});openAdminPanel()">Delete</button></td>
+    </tr>`).join('');
 
   panel.innerHTML = `
     <div class="admin-header">
@@ -497,6 +743,17 @@ function renderAdminPanel(users = [], analytics = {}, orders = []) {
       <button class="admin-close-btn" onclick="closeAdminPanel()">← Back to Store</button>
     </div>
     <div class="admin-stat-grid">${statCards}</div>
+    <section class="admin-section admin-visuals">
+      <div class="admin-section-head">
+        <h3>Store Analytics</h3>
+        <span>Sales chart and category mix</span>
+      </div>
+      <div class="admin-chart-grid">
+        <div class="admin-line-chart">${salesTrend.map(point => `<span style="--h:${point.height}%"><em>${escHtml(point.label)}</em></span>`).join('')}</div>
+        <div class="admin-donut" style="--c1:${byCategory.c1}%;--c2:${byCategory.c2}%;--c3:${byCategory.c3}%"><strong>$${Number(totals.total_revenue || 0).toFixed(0)}</strong><span>revenue</span></div>
+        <div class="low-stock-list">${lowStock.map(product => `<p><strong>${escHtml(product.title)}</strong><span>${Number(product.stock || 0)} left</span></p>`).join('') || '<p>No low-stock alerts.</p>'}</div>
+      </div>
+    </section>
     <section class="admin-section">
       <div class="admin-section-head">
         <h3>All Orders</h3>
@@ -519,6 +776,30 @@ function renderAdminPanel(users = [], analytics = {}, orders = []) {
         <span>${userList.length} registered user${userList.length !== 1 ? 's' : ''}</span>
       </div>
       ${rows}
+    </section>`;
+  panel.innerHTML += `
+    <section class="admin-section">
+      <div class="admin-section-head"><h3>Product Manager</h3><span>Add, edit, delete, stock</span></div>
+      <form class="admin-product-form" onsubmit="handleAdminProductSave(event)">
+        <input name="title" placeholder="Title" required />
+        <input name="author" placeholder="Author" required />
+        <input name="price" type="number" step="0.01" placeholder="Price" required />
+        <input name="stock" type="number" placeholder="Stock" required />
+        <select name="category_id">${categoryOptions}</select>
+        <select name="genre_id">${genreOptions}</select>
+        <input name="image_url" placeholder="Cover path" />
+        <textarea name="description" placeholder="Description"></textarea>
+        <button type="submit">Add title</button>
+      </form>
+      <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>Title</th><th>Author</th><th>Price</th><th>Stock</th><th></th></tr></thead><tbody>${productRows}</tbody></table></div>
+    </section>
+    <section class="admin-section">
+      <div class="admin-section-head"><h3>User Manager</h3><span>Promote, demote, disable</span></div>
+      <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Access</th></tr></thead><tbody>${userRows}</tbody></table></div>
+    </section>
+    <section class="admin-section">
+      <div class="admin-section-head"><h3>Review Moderation</h3><span>${reviewList.length} reader notes</span></div>
+      <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>Title</th><th>User</th><th>Rating</th><th>Review</th><th></th></tr></thead><tbody>${reviewRows || '<tr><td colspan="5" class="admin-empty-cart">No reviews yet.</td></tr>'}</tbody></table></div>
     </section>`;
 }
 
@@ -576,13 +857,138 @@ function renderOrderHistory(orders) {
             <span>$${Number(item.line_total || item.unit_price * item.quantity || 0).toFixed(2)}</span>
           </div>`).join('')}
       </div>
+      <div class="order-progress" aria-label="Order progress">
+        ${['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered'].map(status => `
+          <span class="${orderStepClass(order.status || 'Confirmed', status)}">${status}</span>
+        `).join('')}
+      </div>
     </div>`).join('');
+}
+
+function orderStepClass(current, step) {
+  const order = ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered'];
+  if (current === 'Cancelled') return 'cancelled';
+  return order.indexOf(step) <= order.indexOf(current) ? 'complete' : '';
+}
+
+function renderCheckout(cartData = {}, coupon = null, totals = {}) {
+  const body = document.getElementById('checkoutBody');
+  if (!body) return;
+  const items = cartData.items || [];
+  body.innerHTML = `
+    <form class="checkout-flow" onsubmit="submitCheckout(event)">
+      <section class="checkout-step">
+        <span>Step 1</span>
+        <h3>Delivery</h3>
+        <input name="fullName" required placeholder="Full name" autocomplete="name" />
+        <input name="address" required placeholder="Street address" autocomplete="street-address" />
+        <div class="checkout-grid-2">
+          <input name="city" required placeholder="City" autocomplete="address-level2" />
+          <input name="postcode" required placeholder="Postcode" autocomplete="postal-code" />
+        </div>
+      </section>
+      <section class="checkout-step">
+        <span>Step 2</span>
+        <h3>Mock payment</h3>
+        <label class="mock-payment">
+          <input type="radio" name="paymentMethod" value="Inkbound black card" checked />
+          <strong>Inkbound black card</strong>
+          <small>Ending 4242 · Demo payment only</small>
+        </label>
+        <label class="mock-payment">
+          <input type="radio" name="paymentMethod" value="Cash on delivery" />
+          <strong>Cash on delivery</strong>
+          <small>Marked as pending until confirmed</small>
+        </label>
+      </section>
+      <section class="checkout-step">
+        <span>Step 3</span>
+        <h3>Review</h3>
+        <div class="checkout-lines">
+          ${items.map(item => `
+            <div><span>${escHtml(item.title)} x${item.quantity}</span><strong>$${Number(item.line_total || 0).toFixed(2)}</strong></div>
+          `).join('')}
+        </div>
+        <div class="checkout-totals">
+          <div><span>Subtotal</span><strong>$${Number(totals.subtotal || 0).toFixed(2)}</strong></div>
+          <div><span>${coupon ? `${escHtml(coupon.code)} discount` : 'Discount'}</span><strong>-$${Number(totals.discount || 0).toFixed(2)}</strong></div>
+          <div><span>Shipping</span><strong>${Number(totals.shipping || 0) ? `$${Number(totals.shipping).toFixed(2)}` : 'Free'}</strong></div>
+          <div><span>Estimated tax</span><strong>$${Number(totals.tax || 0).toFixed(2)}</strong></div>
+          <div class="checkout-grand"><span>Total</span><strong>$${Number(totals.grandTotal || 0).toFixed(2)}</strong></div>
+        </div>
+      </section>
+      <button class="checkout-place-btn" type="submit">Place order</button>
+    </form>`;
+}
+
+function renderReceipt(order = {}) {
+  const modal = document.getElementById('receiptModal');
+  const body = document.getElementById('receiptBody');
+  if (!modal || !body) return;
+  body.innerHTML = `
+    <div class="receipt-card">
+      <span class="receipt-kicker">Order confirmed</span>
+      <h2>#${escHtml(order.orderId || 'New')}</h2>
+      <p>Your shelf is being prepared. Estimated dispatch: ${escHtml(order.eta ? new Date(order.eta).toLocaleDateString() : 'within 4 days')}.</p>
+      <div class="receipt-lines">
+        ${(order.items || []).map(item => `
+          <div>
+            <span>${escHtml(item.title)} x${item.quantity}</span>
+            <strong>$${Number(item.line_total || 0).toFixed(2)}</strong>
+          </div>
+        `).join('')}
+      </div>
+      <div class="receipt-totals">
+        <div><span>Subtotal</span><strong>$${Number(order.subtotal || 0).toFixed(2)}</strong></div>
+        <div><span>Shipping</span><strong>${Number(order.shipping || 0) ? `$${Number(order.shipping).toFixed(2)}` : 'Free'}</strong></div>
+        <div><span>${order.coupon ? `${escHtml(order.coupon.code)} discount` : 'Discount'}</span><strong>-$${Number(order.discount || 0).toFixed(2)}</strong></div>
+        <div><span>Est. tax</span><strong>$${Number(order.tax || 0).toFixed(2)}</strong></div>
+        <div class="receipt-grand"><span>Total</span><strong>$${Number(order.total || 0).toFixed(2)}</strong></div>
+      </div>
+      <button class="receipt-action secondary" onclick="downloadInvoice()">Download invoice</button>
+      <button class="receipt-action" onclick="closeReceipt();openOrders()">View order history</button>
+    </div>`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function downloadInvoice() {
+  const text = document.getElementById('receiptBody')?.innerText || 'Inkbound receipt';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `inkbound-invoice-${Date.now()}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function renderCommandResults(query, results = []) {
+  const el = document.getElementById('commandResults');
+  if (!el) return;
+  if (!results.length) {
+    el.innerHTML = '<p class="command-empty">No command or title found.</p>';
+    return;
+  }
+  el.innerHTML = results.map((item, index) => `
+    <button class="command-result" onclick="executeCommand(${index})">
+      <span class="command-icon ${item.type}">
+        ${item.image_url ? `<img src="${escHtml(cleanImageUrl(item.image_url))}" alt="" onerror="this.onerror=null;this.src='images/placeholder.svg'" />` : ''}
+      </span>
+      <span>
+        <strong>${escHtml(item.label)}</strong>
+        <small>${escHtml(item.detail || item.type)}</small>
+      </span>
+      <kbd>${index === 0 ? 'Enter' : ''}</kbd>
+    </button>
+  `).join('');
 }
 
 function renderModalReviews(reviews, productId) {
   const modal = document.querySelector('.modal');
   modal.querySelector('.modal-reviews')?.remove();
   const reviewItems = Array.isArray(reviews?.data) ? reviews.data : [];
+  const currentUser = getStoredUser();
   const section = document.createElement('div');
   section.className = 'modal-reviews';
   section.innerHTML = `
@@ -595,6 +1001,9 @@ function renderModalReviews(reviews, productId) {
         </div>
         <div>${renderStars(Number(r.rating))}</div>
         <p class="review-body">${escHtml(r.body || r.review || '')}</p>
+        ${currentUser && (currentUser.role === 'admin' || currentUser.username === r.username)
+          ? `<button class="review-delete-btn" onclick="handleDeleteReview(${Number(r.id)}, ${Number(productId)})">Delete</button>`
+          : ''}
       </div>`).join('') : '<p class="no-reviews">No reviews yet.</p>'}
     <form class="review-form" onsubmit="event.preventDefault();handleSubmitReview(${productId}, Number(this.rating.value), this.body.value.trim())">
       <select name="rating" class="sort-select" aria-label="Review rating">

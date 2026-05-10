@@ -36,7 +36,9 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
-    const total = items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0);
+    const subtotal = items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0);
+    const discount = Math.max(0, Math.min(subtotal, Number(req.body.discount_amount || 0)));
+    const total = Math.max(0, subtotal - discount);
 
     // Create order
     const [orderResult] = await conn.query(
@@ -65,7 +67,12 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Order placed!',
-      data: { orderId, total: parseFloat(total.toFixed(2)), itemCount: items.length }
+      data: {
+        orderId,
+        total: parseFloat(total.toFixed(2)),
+        itemCount: items.length,
+        fulfillment_eta: new Date(Date.now() + 1000 * 60 * 60 * 24 * 4).toISOString(),
+      }
     });
   } catch (e) {
     await conn.rollback();

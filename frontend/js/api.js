@@ -121,6 +121,7 @@ function sortStaticProducts(products, sort) {
   if (sort === 'price_asc') sorted.sort((a, b) => Number(a.price) - Number(b.price));
   else if (sort === 'price_desc') sorted.sort((a, b) => Number(b.price) - Number(a.price));
   else if (sort === 'rating') sorted.sort((a, b) => Number(b.goodreads_rating || 0) - Number(a.goodreads_rating || 0));
+  else if (sort === 'popularity') sorted.sort((a, b) => (Number(b.goodreads_rating || 0) * 20 + Number(b.stock || 0)) - (Number(a.goodreads_rating || 0) * 20 + Number(a.stock || 0)));
   else if (sort === 'newest') sorted.sort((a, b) => Number(b.id) - Number(a.id));
   else sorted.sort(byText('title'));
   return sorted;
@@ -201,6 +202,23 @@ function nextStaticOrderId(orders) {
   return Math.max(1000, ...orders.map(order => Number(order.id) || 0)) + 1;
 }
 
+function staticReviewsKey() {
+  return 'inkbound_static_reviews_v2';
+}
+
+function readStaticReviews() {
+  try { return JSON.parse(localStorage.getItem(staticReviewsKey()) || '[]'); }
+  catch { return []; }
+}
+
+function writeStaticReviews(reviews) {
+  localStorage.setItem(staticReviewsKey(), JSON.stringify(reviews));
+}
+
+function nextStaticReviewId(reviews) {
+  return Math.max(0, ...reviews.map(review => Number(review.id) || 0)) + 1;
+}
+
 function staticApiFetch(endpoint, config = {}) {
   if (!hasStaticCatalog()) return null;
 
@@ -241,6 +259,7 @@ function staticApiFetch(endpoint, config = {}) {
     const password = String(body.password || '');
     const user = readStaticUsers().find(u => u.email.toLowerCase() === email && u.password === password);
     if (!user) throw new Error('Invalid email or password');
+    if (user.disabled) throw new Error('This account has been disabled');
     return { success: true, message: 'Logged in successfully', data: { user: publicStaticUser(user), token: staticTokenFor(user) } };
   }
 
@@ -258,6 +277,26 @@ function staticApiFetch(endpoint, config = {}) {
       cart: buildStaticCart(staticCartKeyForUser(user.id)).data,
     }));
     return { success: true, data };
+  }
+
+  if (url.pathname === '/admin/users' && method === 'GET') {
+    const current = currentStaticUserFromToken();
+    if (current?.role !== 'admin') throw new Error('Admin access required');
+    return { success: true, data: readStaticUsers().map(publicStaticUser) };
+  }
+
+  const adminUserMatch = url.pathname.match(/^\/admin\/users\/(\d+)$/);
+  if (adminUserMatch && method === 'PATCH') {
+    const current = currentStaticUserFromToken();
+    if (current?.role !== 'admin') throw new Error('Admin access required');
+    const body = JSON.parse(config.body || '{}');
+    const users = readStaticUsers();
+    const user = users.find(item => item.id === Number(adminUserMatch[1]));
+    if (!user) throw new Error('User not found');
+    if (body.role && ['user', 'admin'].includes(body.role)) user.role = body.role;
+    if (typeof body.disabled === 'boolean') user.disabled = body.disabled;
+    writeStaticUsers(users);
+    return { success: true, data: publicStaticUser(user) };
   }
 
   if (url.pathname === '/admin/analytics' && method === 'GET') {
@@ -300,13 +339,23 @@ function staticApiFetch(endpoint, config = {}) {
     const categoryId = Number(url.searchParams.get('categoryId')) || null;
     const genreId = Number(url.searchParams.get('genreId')) || null;
     const search = (url.searchParams.get('search') || '').toLowerCase();
+    const author = (url.searchParams.get('author') || '').toLowerCase();
     const sort = url.searchParams.get('sort') || 'title';
+    const minPrice = Number(url.searchParams.get('minPrice')) || 0;
+    const maxPrice = Number(url.searchParams.get('maxPrice')) || Infinity;
+    const minRating = Number(url.searchParams.get('minRating')) || 0;
+    const availability = url.searchParams.get('availability') || 'all';
     const page = Number(url.searchParams.get('page')) || 1;
     const limit = Number(url.searchParams.get('limit')) || 500;
     let data = products.filter(p => {
       if (categoryId && Number(p.category_id) !== categoryId) return false;
       if (genreId && Number(p.genre_id) !== genreId) return false;
       if (search && !`${p.title} ${p.author}`.toLowerCase().includes(search)) return false;
+      if (author && !String(p.author).toLowerCase().includes(author)) return false;
+      if (Number(p.price) < minPrice || Number(p.price) > maxPrice) return false;
+      if (Number(p.goodreads_rating || 0) < minRating) return false;
+      if (availability === 'available' && Number(p.stock || 0) <= 0) return false;
+      if (availability === 'low' && Number(p.stock || 0) > 12) return false;
       return true;
     });
     data = sortStaticProducts(data, sort);
@@ -321,7 +370,7 @@ function staticApiFetch(endpoint, config = {}) {
     const data = products
       .filter(p => `${p.title} ${p.author}`.toLowerCase().includes(q))
       .slice(0, 8)
-      .map(({ id, title, author }) => ({ id, title, author }));
+      .map(({ id, title, author, image_url }) => ({ id, title, author, image_url }));
     return { success: true, data };
   }
 
@@ -400,14 +449,24 @@ function staticApiFetch(endpoint, config = {}) {
       if (!current) throw new Error('Please log in to checkout');
       const cart = buildStaticCart().data;
       if (!cart.items.length) throw new Error('Cart is empty');
+      const body = JSON.parse(config.body || '{}');
+      const discount = Math.max(0, Math.min(Number(cart.subtotal || 0), Number(body.discount_amount || 0)));
+      const total = Number((Number(cart.subtotal || 0) - discount).toFixed(2));
       const orders = readStaticOrders();
       const order = {
         id: nextStaticOrderId(orders),
         user_id: current.id,
-        total_amount: cart.subtotal,
-        total: cart.subtotal,
-        status: 'Placed',
+        username: current.username,
+        email: current.email,
+        total_amount: total,
+        total,
+        status: 'Confirmed',
         created_at: new Date().toISOString(),
+        fulfillment_eta: new Date(Date.now() + 1000 * 60 * 60 * 24 * 4).toISOString(),
+        address: body.address || null,
+        payment_method: body.payment_method || 'Mock card',
+        coupon_code: body.coupon_code || null,
+        discount_amount: discount,
         items: cart.items.map(item => ({
           product_id: item.product_id,
           title: item.title,
@@ -421,12 +480,137 @@ function staticApiFetch(endpoint, config = {}) {
       orders.push(order);
       writeStaticOrders(orders);
       writeStaticCart([]);
-      return { success: true, data: { orderId: order.id, total: cart.subtotal, itemCount: cart.items.length } };
+      return { success: true, data: { orderId: order.id, total, itemCount: cart.items.length, fulfillment_eta: order.fulfillment_eta } };
     }
   }
 
-  if (url.pathname.match(/^\/reviews\/\d+$/)) {
-    return { success: true, data: [] };
+  const adminOrderStatusMatch = url.pathname.match(/^\/admin\/orders\/(\d+)\/status$/);
+  if (adminOrderStatusMatch && method === 'PATCH') {
+    const current = currentStaticUserFromToken();
+    if (current?.role !== 'admin') throw new Error('Admin access required');
+    const body = JSON.parse(config.body || '{}');
+    const orders = readStaticOrders();
+    const order = orders.find(item => Number(item.id) === Number(adminOrderStatusMatch[1]));
+    if (!order) throw new Error('Order not found');
+    order.status = String(body.status || order.status || 'Confirmed');
+    writeStaticOrders(orders);
+    return { success: true, data: order };
+  }
+
+  const reviewMatch = url.pathname.match(/^\/reviews\/(\d+)$/);
+  if (reviewMatch) {
+    const id = Number(reviewMatch[1]);
+    const reviews = readStaticReviews();
+    if (method === 'GET') {
+      const users = readStaticUsers();
+      const data = reviews
+        .filter(review => Number(review.product_id) === id)
+        .map(review => ({
+          ...review,
+          username: users.find(user => user.id === review.user_id)?.username || 'Reader',
+        }))
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      return { success: true, data };
+    }
+    if (method === 'POST') {
+      const current = currentStaticUserFromToken();
+      if (!current) throw new Error('Please log in to review');
+      const body = JSON.parse(config.body || '{}');
+      const rating = Math.max(1, Math.min(5, Number(body.rating) || 5));
+      const reviewBody = String(body.body || '').trim();
+      if (!reviewBody) throw new Error('Review cannot be empty');
+      const existing = reviews.find(review => review.user_id === current.id && Number(review.product_id) === id);
+      if (existing) {
+        existing.rating = rating;
+        existing.body = reviewBody;
+        existing.created_at = new Date().toISOString();
+      } else {
+        reviews.push({
+          id: nextStaticReviewId(reviews),
+          user_id: current.id,
+          product_id: id,
+          rating,
+          body: reviewBody,
+          created_at: new Date().toISOString(),
+        });
+      }
+      writeStaticReviews(reviews);
+      return { success: true, data: reviews.filter(review => Number(review.product_id) === id) };
+    }
+    if (method === 'DELETE') {
+      const current = currentStaticUserFromToken();
+      if (!current) throw new Error('Please log in to delete reviews');
+      const review = reviews.find(item => item.id === id);
+      if (!review) throw new Error('Review not found');
+      if (review.user_id !== current.id && current.role !== 'admin') throw new Error('Not allowed');
+      writeStaticReviews(reviews.filter(item => item.id !== id));
+      return { success: true, data: [] };
+    }
+  }
+
+  if (url.pathname === '/admin/reviews' && method === 'GET') {
+    const current = currentStaticUserFromToken();
+    if (current?.role !== 'admin') throw new Error('Admin access required');
+    const users = readStaticUsers();
+    const data = readStaticReviews()
+      .map(review => ({
+        ...review,
+        username: users.find(user => user.id === review.user_id)?.username || 'Reader',
+        product: products.find(product => product.id === review.product_id),
+      }))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return { success: true, data };
+  }
+
+  const adminProductMatch = url.pathname.match(/^\/admin\/products(?:\/(\d+))?$/);
+  if (adminProductMatch) {
+    const current = currentStaticUserFromToken();
+    if (current?.role !== 'admin') throw new Error('Admin access required');
+    const productId = Number(adminProductMatch[1]);
+    if (method === 'GET') return { success: true, data: products };
+    if (method === 'POST') {
+      const body = JSON.parse(config.body || '{}');
+      const category = catalog.categories.find(c => c.id === Number(body.category_id || 1)) || catalog.categories[0];
+      const genre = catalog.categories.flatMap(c => c.genres).find(g => g.id === Number(body.genre_id || category.genres?.[0]?.id || 1)) || category.genres?.[0];
+      const product = {
+        id: Math.max(0, ...products.map(p => Number(p.id) || 0)) + 1,
+        title: body.title || 'Untitled Book',
+        author: body.author || 'Unknown',
+        price: Number(body.price || 19.99),
+        image_url: body.image_url || 'images/placeholder.svg',
+        cover_color: body.cover_color || '#222222',
+        category_id: Number(category.id),
+        genre_id: Number(genre?.id || 1),
+        category_name: category.name,
+        category_slug: category.slug,
+        genre_name: genre?.name || 'General',
+        description: body.description || 'A freshly catalogued Inkbound title.',
+        goodreads_rating: Number(body.goodreads_rating || 4.2),
+        stock: Number(body.stock || 20),
+      };
+      products.unshift(product);
+      return { success: true, data: product };
+    }
+    const product = products.find(item => item.id === productId);
+    if (!product) throw new Error('Product not found');
+    if (method === 'PATCH') {
+      const body = JSON.parse(config.body || '{}');
+      Object.assign(product, {
+        title: body.title ?? product.title,
+        author: body.author ?? product.author,
+        price: body.price === undefined ? product.price : Number(body.price),
+        stock: body.stock === undefined ? product.stock : Number(body.stock),
+        category_id: body.category_id === undefined ? product.category_id : Number(body.category_id),
+        genre_id: body.genre_id === undefined ? product.genre_id : Number(body.genre_id),
+        image_url: body.image_url ?? product.image_url,
+        description: body.description ?? product.description,
+      });
+      return { success: true, data: product };
+    }
+    if (method === 'DELETE') {
+      catalog.products = products.filter(item => item.id !== productId);
+      return { success: true, data: catalog.products };
+    }
   }
 
   return null;
@@ -492,6 +676,27 @@ async function apiGetMe() {
 async function apiGetAllUserCarts() { return apiFetch('/admin/users-carts'); }
 async function apiGetAnalytics()    { return apiFetch('/admin/analytics'); }
 async function apiGetAllOrders()    { return apiFetch('/admin/orders'); }
+async function apiGetAdminUsers()   { return apiFetch('/admin/users'); }
+async function apiGetAdminReviews() { return apiFetch('/admin/reviews'); }
+async function apiGetAdminProducts(){ return apiFetch('/admin/products'); }
+async function apiUpdateAdminUser(userId, data) {
+  return apiFetch(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+async function apiCreateAdminProduct(data) {
+  return apiFetch('/admin/products', { method: 'POST', body: JSON.stringify(data) });
+}
+async function apiUpdateAdminProduct(id, data) {
+  return apiFetch(`/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+async function apiDeleteAdminProduct(id) {
+  return apiFetch(`/admin/products/${id}`, { method: 'DELETE' });
+}
+async function apiUpdateOrderStatus(orderId, status) {
+  return apiFetch(`/admin/orders/${orderId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
 
 // ── Products (with pagination/sort/filter) ────────────────────
 
@@ -500,9 +705,12 @@ async function fetchProducts(categoryId = null, genreId = null, search = null, e
   if (categoryId)       params.append('categoryId', categoryId);
   if (genreId)          params.append('genreId',    genreId);
   if (search)           params.append('search',     search);
+  if (extra.author)     params.append('author',     extra.author);
   if (extra.sort)       params.append('sort',       extra.sort);
   if (extra.minPrice)   params.append('minPrice',   extra.minPrice);
   if (extra.maxPrice)   params.append('maxPrice',   extra.maxPrice);
+  if (extra.minRating)  params.append('minRating',  extra.minRating);
+  if (extra.availability) params.append('availability', extra.availability);
   if (extra.page)       params.append('page',       extra.page);
   if (extra.limit)      params.append('limit',      extra.limit || 24);
   const query = params.toString() ? `?${params}` : '';
@@ -526,7 +734,9 @@ async function removeFromWishlist(id)  { return apiFetch(`/wishlist/${id}`, { me
 
 // ── Orders ────────────────────────────────────────────────────
 
-async function placeOrder()     { return apiFetch('/orders', { method: 'POST' }); }
+async function placeOrder(payload = {}) {
+  return apiFetch('/orders', { method: 'POST', body: JSON.stringify(payload) });
+}
 async function fetchOrders()    { return apiFetch('/orders'); }
 
 // ── Reviews ───────────────────────────────────────────────────

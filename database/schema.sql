@@ -46,6 +46,7 @@ CREATE TABLE users (
   email         VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   role          ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+  disabled      TINYINT(1) NOT NULL DEFAULT 0,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -69,11 +70,59 @@ CREATE TABLE cart_items (
   UNIQUE KEY unique_session_product (session_id, product_id)
 );
 
+-- wishlists
+CREATE TABLE wishlists (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  product_id INT NOT NULL,
+  added_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_user_wishlist_product (user_id, product_id)
+);
+
+-- orders
+CREATE TABLE orders (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT NOT NULL,
+  total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+  status       ENUM('Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled') NOT NULL DEFAULT 'Confirmed',
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE order_items (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  order_id   INT NOT NULL,
+  product_id INT NOT NULL,
+  title      VARCHAR(255) NOT NULL,
+  author     VARCHAR(255) NOT NULL,
+  image_url  VARCHAR(255) NOT NULL,
+  quantity   INT NOT NULL DEFAULT 1,
+  unit_price DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (order_id)   REFERENCES orders(id)   ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
+-- reviews
+CREATE TABLE reviews (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  product_id INT NOT NULL,
+  rating     INT NOT NULL,
+  body       TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_user_product_review (user_id, product_id),
+  CHECK (rating BETWEEN 1 AND 5)
+);
+
 --  Seed categories
 
 INSERT INTO categories (name, slug, display_order) VALUES
   ('Books',               'books',          1),
-  ('Manga/Manhwa/Manhua', 'manga',          2),
+  ('Manga',               'manga',          2),
   ('Light Novels',        'light-novels',   3),
   ('Graphic Novels',      'graphic-novels', 4);
 
@@ -92,7 +141,7 @@ INSERT INTO genres (category_id, name, slug)
 SELECT id, 'Thriller',        'thriller'  FROM categories WHERE slug='books';
 
 
--- Manga/Manhwa/Manhua
+-- Manga
 INSERT INTO genres (category_id, name, slug)
 SELECT id, 'Action',       'action'       FROM categories WHERE slug='manga';
 INSERT INTO genres (category_id, name, slug)
@@ -234,7 +283,7 @@ INSERT INTO products (title, author, price, cover_color, category_id, genre_id, 
   '/images/ciaphas-cain.jpg'
 );
 
--- Manga/Manhwa/Manhua
+-- Manga
 INSERT INTO products (title, author, price, cover_color, category_id, genre_id, description, image_url) VALUES
 (
   '20th Century Boys, Vol. 1', 'Naoki Urasawa', 33.99, '#f5e0e0',
@@ -601,7 +650,7 @@ UPDATE products SET goodreads_rating = 4.1 WHERE title = 'Slaughterhouse-Five';
 UPDATE products SET goodreads_rating = 3.8 WHERE title = 'The War of the Worlds';
 UPDATE products SET goodreads_rating = 4.3 WHERE title = 'Hyperion';
 
--- Manga/Manhwa/Manhua
+-- Manga
 UPDATE products SET goodreads_rating = 4.4 WHERE title = '20th Century Boys, Vol. 1';
 UPDATE products SET goodreads_rating = 4.1 WHERE title = 'Land of the Lustrous, Vol. 1';
 UPDATE products SET goodreads_rating = 4.3 WHERE title = 'The Color of the End: Mission in the Apocalypse, Vol. 1';
@@ -662,4 +711,3 @@ UPDATE products SET goodreads_rating = 4.5 WHERE title = 'Batman: The Killing Jo
 UPDATE products SET goodreads_rating = 4.4 WHERE title = 'Flashpoint';
 UPDATE products SET goodreads_rating = 4.4 WHERE title = 'Injustice: Gods Among Us, Vol. 1';
 UPDATE products SET goodreads_rating = 4.2 WHERE title = 'Once & Future, Vol. 1';
-

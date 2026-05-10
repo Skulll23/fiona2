@@ -51,6 +51,12 @@
   </div>
 </section>
 
+<!-- Editorial shelves -->
+<section class="editorial-shelves" id="editorialShelves" aria-label="Curated shelves"></section>
+
+<!-- React assignment dashboard: mounted by js/react-widgets.js -->
+<section id="reactAssignmentDashboard" class="react-dashboard" aria-label="Store intelligence"></section>
+
 <!-- Main items  -->
 <div class="page-body">
 
@@ -69,6 +75,43 @@
 
     <div class="sidebar-body" id="sidebarBody">
     </div>
+
+    <div class="advanced-filters" aria-label="Advanced filters">
+      <div class="filter-block-title">Refine</div>
+      <label class="filter-field">
+        <span>Minimum rating</span>
+        <select id="ratingFilter" onchange="handleAdvancedFilterChange()">
+          <option value="0">Any rating</option>
+          <option value="4.6">4.6+</option>
+          <option value="4.4">4.4+</option>
+          <option value="4.2">4.2+</option>
+          <option value="4">4.0+</option>
+        </select>
+      </label>
+      <label class="filter-field">
+        <span>Availability</span>
+        <select id="availabilityFilter" onchange="handleAdvancedFilterChange()">
+          <option value="all">All stock</option>
+          <option value="available">Available</option>
+          <option value="low">Low stock</option>
+        </select>
+      </label>
+      <div class="price-filter-row">
+        <label class="filter-field">
+          <span>Min $</span>
+          <input id="minPriceFilter" type="number" min="0" placeholder="0" oninput="debouncedAdvancedFilterChange()" />
+        </label>
+        <label class="filter-field">
+          <span>Max $</span>
+          <input id="maxPriceFilter" type="number" min="0" placeholder="80" oninput="debouncedAdvancedFilterChange()" />
+        </label>
+      </div>
+      <label class="filter-field">
+        <span>Author</span>
+        <input id="authorFilter" type="text" placeholder="Author name" oninput="debouncedAdvancedFilterChange()" />
+      </label>
+      <button class="filter-reset-btn" onclick="clearAdvancedFilters()">Reset refine</button>
+    </div>
   </aside>
 
 
@@ -77,9 +120,16 @@
     <div class="section-heading">
       <span id="sectionHeadingText" class="section-heading-text">All Titles</span>
       <span id="sectionHeadingCount" class="section-heading-count"></span>
+      <div class="view-controls" id="viewControls" aria-label="View controls">
+        <button class="view-btn active" id="gridViewBtn" onclick="setViewMode('grid')" aria-label="Grid view">Grid</button>
+        <button class="view-btn" id="shelfViewBtn" onclick="setViewMode('shelf')" aria-label="Shelf view">Shelf</button>
+        <button class="view-btn" id="compactViewBtn" onclick="setViewMode('compact')" aria-label="Compact view">Dense</button>
+        <button class="view-btn" id="spotlightViewBtn" onclick="setViewMode('spotlight')" aria-label="Spotlight view">Spotlight</button>
+      </div>
       <div class="sort-controls">
         <select id="sortSelect" class="sort-select" onchange="handleSortChange(this.value)">
           <option value="title">A – Z</option>
+          <option value="popularity">Popular</option>
           <option value="price_asc">Price ↑</option>
           <option value="price_desc">Price ↓</option>
           <option value="rating">Top Rated</option>
@@ -121,6 +171,11 @@
         <span class="cart-total-label">Total</span>
         <span class="cart-total-amt" id="cartTotal" aria-live="polite">$0.00</span>
       </div>
+      <div class="coupon-box">
+        <input id="couponInput" type="text" placeholder="Coupon code" aria-label="Coupon code" />
+        <button onclick="handleApplyCoupon()">Apply</button>
+      </div>
+      <div class="coupon-status" id="couponStatus"></div>
       <button id="checkoutBtn" class="checkout-btn" disabled onclick="handleCheckout()">
         Proceed to Checkout →
       </button>
@@ -153,8 +208,8 @@
 <div id="modalCover" class="modal-cover">
   <img id="modalImageUrl" src="" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" />
 </div>
-      <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
     </div>
+    <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
     <div>
       <span id="modalCatBadge"  class="modal-cat-badge"></span>
       <span id="modalGenre"     class="modal-genre"></span>
@@ -197,6 +252,39 @@
   </div>
 </div>
 
+<!-- Checkout modal -->
+<div id="checkoutModal" class="side-modal-overlay" aria-hidden="true">
+  <div class="side-modal checkout-modal">
+    <div class="side-modal-head">
+      <span>Checkout</span>
+      <button onclick="closeCheckout()" class="side-modal-close">✕</button>
+    </div>
+    <div id="checkoutBody" class="side-modal-body"></div>
+  </div>
+</div>
+
+<!-- Receipt modal -->
+<div id="receiptModal" class="side-modal-overlay" aria-hidden="true">
+  <div class="side-modal receipt-modal">
+    <div class="side-modal-head">
+      <span>Receipt</span>
+      <button onclick="closeReceipt()" class="side-modal-close">✕</button>
+    </div>
+    <div id="receiptBody" class="side-modal-body"></div>
+  </div>
+</div>
+
+<!-- Command palette -->
+<div id="commandPalette" class="command-overlay" aria-hidden="true">
+  <div class="command-panel" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="command-input-wrap">
+      <span class="command-mark">⌘K</span>
+      <input id="commandInput" class="command-input" type="text" placeholder="Search books, collections, and actions..." autocomplete="off" />
+    </div>
+    <div id="commandResults" class="command-results"></div>
+  </div>
+</div>
+
 <!-- Confirmation dialog -->
 <div id="confirmOverlay" class="confirm-overlay" role="dialog" aria-modal="true"
      aria-labelledby="confirmTitle" aria-hidden="true">
@@ -214,12 +302,21 @@
 <!-- toast  -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+  <button onclick="document.getElementById('sectionHeadingText')?.scrollIntoView({behavior:'smooth'})">Store</button>
+  <button onclick="openCommandPalette()">Search</button>
+  <button onclick="openWishlist()">Wishlist</button>
+  <button onclick="toggleMobileCart()">Cart <span id="mobileCartBadge">0</span></button>
+</nav>
 
 <!-- Scripts: api -> ui -> app -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="js/catalog.js"></script>
 <script src="js/api.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
+<script src="js/react-widgets.js"></script>
 
 </body>
 </html>

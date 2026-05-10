@@ -5,8 +5,11 @@ const state = {
   categories: [],
   cart:       { items: [], subtotal: 0, item_count: 0 },
   filter:     { categoryId: null, genreId: null, categoryName: '', genreName: '' },
+  refine:     { minPrice: '', maxPrice: '', minRating: 0, availability: 'all' },
+  coupon:     null,
   search:     '',
   sort:       'title',
+  viewMode:   localStorage.getItem('inkbound_view_mode') || 'grid',
   loading:    false,
   wishlistIds: new Set(),
   pagination: { page: 1, totalPages: 1, total: 0 },
@@ -14,6 +17,41 @@ const state = {
   authView:   'login',
   adminView:  false,
 };
+
+function getAppSnapshot() {
+  const catalogProducts = window.INKBOUND_STATIC_CATALOG?.products || [];
+  const products = state.products.length ? state.products : catalogProducts.slice(0, 24);
+  return {
+    products,
+    categories: state.categories,
+    cart: state.cart,
+    user: state.user,
+    filter: state.filter,
+    refine: state.refine,
+    search: state.search,
+    sort: state.sort,
+    viewMode: state.viewMode,
+    wishlistCount: state.wishlistIds.size,
+    totalProducts: state.pagination.total || catalogProducts.length || state.products.length,
+  };
+}
+
+function emitAppSnapshot(reason = 'state') {
+  window.InkboundApp = {
+    getSnapshot: getAppSnapshot,
+    openBook: openModal,
+    openWishlist,
+    openOrders,
+    openAdminPanel,
+    openCheckout,
+    applyCollection,
+    setViewMode,
+    handleSortChange,
+  };
+  window.dispatchEvent(new CustomEvent('inkbound:state', {
+    detail: { reason, snapshot: getAppSnapshot() },
+  }));
+}
 
 // ── Theme ────────────────────────────────────────────────────
 function initTheme() {
@@ -71,6 +109,8 @@ function clearSearch() {
 
 function cartProductIds() { return new Set(state.cart.items.map(i => i.product_id)); }
 
+const debouncedAdvancedFilterChange = debounce(() => handleAdvancedFilterChange(), 320);
+
 // ── Startup ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
@@ -78,8 +118,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderHeader();
   await Promise.all([loadCategories(), loadCart()]);
   await loadProducts();
+  renderViewControls(state.viewMode);
+  renderEditorialShelves(getCatalogHighlights());
   if (state.user) loadWishlistIds();
   bindStaticEvents();
+  emitAppSnapshot('ready');
 });
 
 // ── Data loaders ─────────────────────────────────────────────
@@ -98,6 +141,11 @@ async function loadProducts(append = false) {
       sort:  state.sort,
       page:  state.pagination.page,
       limit: 24,
+      minPrice: state.refine.minPrice,
+      maxPrice: state.refine.maxPrice,
+      minRating: state.refine.minRating,
+      availability: state.refine.availability,
+      author: state.refine.author,
     });
     if (append) {
       state.products = [...state.products, ...res.data];
@@ -105,9 +153,10 @@ async function loadProducts(append = false) {
       state.products = res.data;
     }
     state.pagination = { ...state.pagination, ...res.pagination };
-    renderProducts(state.products, cartProductIds(), state.wishlistIds, append);
+    renderProducts(state.products, cartProductIds(), state.wishlistIds, append, state.viewMode);
     updateSectionHeading();
     updateProductCount();
+    emitAppSnapshot('products');
     // Show/hide load more
     const lmc = document.getElementById('loadMoreContainer');
     if (lmc) lmc.style.display = state.pagination.page < state.pagination.totalPages ? 'block' : 'none';
@@ -118,11 +167,47 @@ async function loadProducts(append = false) {
   }
 }
 
+function handleAdvancedFilterChange() {
+  state.refine = {
+    minPrice: document.getElementById('minPriceFilter')?.value || '',
+    maxPrice: document.getElementById('maxPriceFilter')?.value || '',
+    minRating: Number(document.getElementById('ratingFilter')?.value || 0),
+    availability: document.getElementById('availabilityFilter')?.value || 'all',
+    author: document.getElementById('authorFilter')?.value.trim() || '',
+  };
+  state.pagination.page = 1;
+  renderSkeletons(8);
+  loadProducts();
+}
+
+function clearAdvancedFilters() {
+  ['minPriceFilter', 'maxPriceFilter', 'authorFilter'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.value = '';
+  });
+  const rating = document.getElementById('ratingFilter');
+  const availability = document.getElementById('availabilityFilter');
+  if (rating) rating.value = '0';
+  if (availability) availability.value = 'all';
+  handleAdvancedFilterChange();
+}
+
+function setViewMode(mode) {
+  state.viewMode = ['grid', 'shelf', 'compact', 'spotlight'].includes(mode) ? mode : 'grid';
+  localStorage.setItem('inkbound_view_mode', state.viewMode);
+  renderViewControls(state.viewMode);
+  renderProducts(state.products, cartProductIds(), state.wishlistIds, false, state.viewMode);
+  updateProductCount();
+  emitAppSnapshot('view-mode');
+}
+
 async function loadCart() {
   try {
     const res  = await fetchCart();
     state.cart = res.data;
-    renderCart(state.cart);
+    renderCart(state.cart, state.coupon);
+    emitAppSnapshot('cart-add');
+    emitAppSnapshot('cart');
   } catch (err) {
     console.error('loadCart:', err);
     showCartError('Could not load cart. Please refresh.');
@@ -148,7 +233,7 @@ function updateSectionHeading() {
   const el = document.getElementById('sectionHeadingText');
   const { categoryName, genreName } = state.filter;
   if (genreName)      el.textContent = genreName;
-  else if (categoryName) el.textContent = categoryName;
+  else if (categoryName) el.textContent = displayCategoryName(categoryName);
   else                el.textContent = 'All Titles';
 }
 
@@ -181,7 +266,7 @@ function handleCategoryClick(categoryId, categorySlug, btn) {
   if (state.filter.categoryId === categoryId && !state.filter.genreId) {
     state.filter = { categoryId: null, genreId: null, categoryName: '', genreName: '' };
   } else {
-    state.filter = { categoryId, genreId: null, categoryName: cat?.name || '', genreName: '' };
+    state.filter = { categoryId, genreId: null, categoryName: displayCategoryName(cat?.name || ''), genreName: '' };
   }
   const genreList = document.getElementById(`genreList_${categoryId}`);
   const isOpen    = genreList.classList.contains('open');
@@ -200,9 +285,9 @@ function handleGenreClick(categoryId, genreId, genreName, btn) {
   if (state.loading) return;
   const cat = state.categories.find(c => c.id === categoryId);
   if (state.filter.genreId === genreId) {
-    state.filter = { categoryId, genreId: null, categoryName: cat?.name || '', genreName: '' };
+    state.filter = { categoryId, genreId: null, categoryName: displayCategoryName(cat?.name || ''), genreName: '' };
   } else {
-    state.filter = { categoryId, genreId, categoryName: cat?.name || '', genreName };
+    state.filter = { categoryId, genreId, categoryName: displayCategoryName(cat?.name || ''), genreName };
   }
   renderSidebar(state.categories, state.filter, handleCategoryClick, handleGenreClick);
   renderFilterPill(state.filter.categoryName, state.filter.genreName);
@@ -230,7 +315,8 @@ async function handleAddToCart(productId) {
   try {
     const res  = await addToCart(productId);
     state.cart = res.data;
-    renderCart(state.cart);
+    renderCart(state.cart, state.coupon);
+    emitAppSnapshot('cart-update');
     const ids = cartProductIds();
     state.products.forEach(p => {
       const b = document.getElementById(`addBtn_${p.id}`);
@@ -259,7 +345,7 @@ async function handleUpdateQty(productId, newQty) {
   try {
     const res  = await updateCartItem(productId, newQty);
     state.cart = res.data;
-    renderCart(state.cart);
+    renderCart(state.cart, state.coupon);
   } catch (err) {
     console.error('updateQty:', err);
     showToast(err.message || 'Could not update quantity', 'error');
@@ -276,7 +362,8 @@ async function handleRemoveItem(productId) {
     const res  = await removeCartItem(productId);
     state.cart = res.data;
     await new Promise(r => setTimeout(r, 200));
-    renderCart(state.cart);
+    renderCart(state.cart, state.coupon);
+    emitAppSnapshot('cart-remove');
     const btn = document.getElementById(`addBtn_${productId}`);
     if (btn) { btn.textContent = '+ Add'; btn.classList.remove('in-cart'); }
     showToast('Item removed');
@@ -303,7 +390,9 @@ async function handleClearCart() {
   try {
     const res  = await clearCart();
     state.cart = res.data;
-    renderCart(state.cart);
+    state.coupon = null;
+    renderCart(state.cart, state.coupon);
+    emitAppSnapshot('cart-clear');
     document.querySelectorAll('.add-btn').forEach(b => { b.textContent = '+ Add'; b.classList.remove('in-cart', 'loading'); });
     showToast('Cart cleared');
   } catch (err) {
@@ -318,20 +407,89 @@ async function handleCheckout() {
     if (!state.user) { openAuthModal('login'); showToast('Please log in to checkout', 'error'); }
     return;
   }
+  openCheckout();
+}
+
+function calculateCheckoutTotals() {
+  const subtotal = Number(state.cart.subtotal || 0);
+  const discount = state.coupon ? Number((subtotal * state.coupon.percent).toFixed(2)) : 0;
+  const afterDiscount = Math.max(0, subtotal - discount);
+  const shipping = afterDiscount >= 35 ? 0 : 4.95;
+  const tax = Number(((afterDiscount + shipping) * 0.08).toFixed(2));
+  const grandTotal = Number((afterDiscount + shipping + tax).toFixed(2));
+  return { subtotal, discount, afterDiscount, shipping, tax, grandTotal };
+}
+
+function handleApplyCoupon() {
+  const input = document.getElementById('couponInput');
+  const code = String(input?.value || '').trim().toUpperCase();
+  const coupons = {
+    INK10: { code: 'INK10', percent: 0.10, label: '10% off' },
+    LUXE15: { code: 'LUXE15', percent: 0.15, label: '15% off' },
+    MANGA20: { code: 'MANGA20', percent: 0.20, label: '20% off' },
+  };
+  state.coupon = coupons[code] || null;
+  renderCart(state.cart, state.coupon);
+  emitAppSnapshot('coupon');
+  showToast(state.coupon ? `${state.coupon.code} applied` : 'Coupon not found', state.coupon ? 'default' : 'error');
+}
+
+function openCheckout() {
+  renderCheckout(state.cart, state.coupon, calculateCheckoutTotals());
+  document.getElementById('checkoutModal').classList.add('open');
+  document.getElementById('checkoutModal').setAttribute('aria-hidden', 'false');
+}
+
+function closeCheckout() {
+  document.getElementById('checkoutModal').classList.remove('open');
+  document.getElementById('checkoutModal').setAttribute('aria-hidden', 'true');
+}
+
+async function submitCheckout(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const address = {
+    name: form.fullName.value.trim(),
+    line1: form.address.value.trim(),
+    city: form.city.value.trim(),
+    postcode: form.postcode.value.trim(),
+  };
+  const paymentMethod = form.paymentMethod.value;
+  const shipping = Number(state.cart.subtotal || 0) >= 35 ? 0 : 4.95;
+  const { tax, grandTotal, discount } = calculateCheckoutTotals();
   const ok = await requestConfirmation({
     kicker: 'Checkout',
     title: 'Place this order?',
-    message: `${state.cart.item_count} item${state.cart.item_count !== 1 ? 's' : ''} will be ordered for $${Number(state.cart.subtotal || 0).toFixed(2)}.`,
+    message: `${state.cart.item_count} item${state.cart.item_count !== 1 ? 's' : ''} will be prepared for ${address.name}. Estimated total $${grandTotal.toFixed(2)}.`,
     confirmText: 'Place order',
   });
   if (!ok) return;
 
   try {
-    const res  = await placeOrder();
+    const res  = await placeOrder({
+      address,
+      payment_method: paymentMethod,
+      coupon_code: state.coupon?.code || null,
+      discount_amount: discount,
+    });
+    renderReceipt({
+      orderId: res.data.orderId,
+      subtotal: state.cart.subtotal,
+      shipping,
+      tax,
+      total: grandTotal,
+      discount,
+      coupon: state.coupon,
+      items: state.cart.items,
+      eta: res.data.fulfillment_eta,
+    });
     state.cart = { items: [], subtotal: 0, item_count: 0 };
-    renderCart(state.cart);
+    state.coupon = null;
+    closeCheckout();
+    renderCart(state.cart, state.coupon);
+    emitAppSnapshot('order');
     document.querySelectorAll('.add-btn').forEach(b => { b.textContent = '+ Add'; b.classList.remove('in-cart'); });
-    showToast(`Order #${res.data.orderId} placed! Total $${res.data.total.toFixed(2)} 🎉`);
+    showToast(`Order #${res.data.orderId} placed`);
   } catch (err) {
     showToast(err.message || 'Checkout failed', 'error');
   }
@@ -357,6 +515,7 @@ async function handleWishlistToggle(productId) {
       btn.classList.toggle('wishlisted', !isWishlisted);
       btn.textContent = !isWishlisted ? '♥' : '♡';
     }
+    emitAppSnapshot('wishlist');
   } catch (err) { showToast(err.message || 'Error', 'error'); }
 }
 
@@ -396,10 +555,17 @@ function closeOrders() {
   document.getElementById('ordersModal').setAttribute('aria-hidden', 'true');
 }
 
+function closeReceipt() {
+  document.getElementById('receiptModal').classList.remove('open');
+  document.getElementById('receiptModal').setAttribute('aria-hidden', 'true');
+}
+
 // ── Product modal ────────────────────────────────────────────
 async function openModal(productId) {
-  const product = state.products.find(p => p.id === productId);
+  const product = state.products.find(p => p.id === productId)
+    || window.INKBOUND_STATIC_CATALOG?.products?.find(p => p.id === productId);
   if (!product) return;
+  rememberRecentlyViewed(product);
   openProductModal(product, cartProductIds().has(productId));
   // Load reviews + similar in parallel
   try {
@@ -463,6 +629,217 @@ function selectAutocomplete(title, author) {
   loadProducts();
 }
 
+function openCommandPalette() {
+  const overlay = document.getElementById('commandPalette');
+  const input = document.getElementById('commandInput');
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  input.value = '';
+  renderCommandResults('', getCommandResults(''));
+  setTimeout(() => input.focus(), 40);
+}
+
+function closeCommandPalette() {
+  const overlay = document.getElementById('commandPalette');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function getCommandResults(query) {
+  const q = query.trim().toLowerCase();
+  const actions = [
+    { type: 'action', label: 'Open wishlist', detail: 'Saved books', run: () => openWishlist() },
+    { type: 'action', label: 'Open orders', detail: 'Order history', run: () => openOrders() },
+    { type: 'action', label: 'Toggle theme', detail: 'Light / dark', run: () => handleThemeToggle() },
+    { type: 'action', label: 'Shelf view', detail: 'Editorial browsing layout', run: () => setViewMode('shelf') },
+    { type: 'action', label: 'Grid view', detail: 'Classic store grid', run: () => setViewMode('grid') },
+    { type: 'action', label: 'Spotlight view', detail: 'Full-bleed cover browsing', run: () => setViewMode('spotlight') },
+    { type: 'action', label: 'Save current filters', detail: 'Add a local collection shortcut', run: () => saveCurrentFilterCollection() },
+  ];
+  const collections = [
+    { type: 'collection', label: 'Staff picks', detail: 'Top rated titles', run: () => applyCollection('rating') },
+    { type: 'collection', label: 'Award winners', detail: 'Highest rated literary shelf', run: () => applyCollection('awards') },
+    { type: 'collection', label: 'Dark academia', detail: 'Moody classics and mysteries', run: () => applyCollection('dark') },
+    { type: 'collection', label: 'Under $20', detail: 'Budget shelf', run: () => applyCollection('under20') },
+    { type: 'collection', label: 'Low stock', detail: 'Almost gone', run: () => applyCollection('low') },
+    { type: 'collection', label: 'Manga essentials', detail: 'Manga', run: () => applyCategoryBySlug('manga') },
+    { type: 'collection', label: 'Light Novel Starter Pack', detail: 'Fantasy and portal picks', run: () => applyCategoryBySlug('light-novels') },
+    { type: 'collection', label: 'Graphic Novel Icons', detail: 'Visual storytelling shelf', run: () => applyCategoryBySlug('graphic-novels') },
+    ...getSavedFilterCollections(),
+  ];
+  const productResults = (window.INKBOUND_STATIC_CATALOG?.products || state.products)
+    .filter(p => !q || `${p.title} ${p.author} ${p.genre_name}`.toLowerCase().includes(q))
+    .slice(0, 7)
+    .map(p => ({ type: 'book', label: p.title, detail: `${p.author} · $${Number(p.price).toFixed(2)}`, image_url: p.image_url, run: () => openModal(p.id) }));
+  return [...actions, ...collections, ...productResults]
+    .filter(item => !q || `${item.label} ${item.detail}`.toLowerCase().includes(q))
+    .slice(0, 10);
+}
+
+function executeCommand(index) {
+  const input = document.getElementById('commandInput');
+  const result = getCommandResults(input.value)[index];
+  if (!result) return;
+  closeCommandPalette();
+  result.run();
+}
+
+function applyCollection(kind) {
+  handleClearFilter();
+  if (kind === 'rating' || kind === 'awards') {
+    const rating = document.getElementById('ratingFilter');
+    if (rating) rating.value = kind === 'awards' ? '4.6' : '4.5';
+  }
+  if (kind === 'dark') {
+    document.getElementById('searchInput').value = 'dark';
+    state.search = 'dark';
+  }
+  if (kind === 'under20') {
+    const max = document.getElementById('maxPriceFilter');
+    if (max) max.value = '20';
+  }
+  if (kind === 'low') {
+    const availability = document.getElementById('availabilityFilter');
+    if (availability) availability.value = 'low';
+  }
+  handleAdvancedFilterChange();
+  document.getElementById('sectionHeadingText')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function saveCurrentFilterCollection() {
+  const name = prompt('Name this collection');
+  if (!name) return;
+  const saved = getSavedFilterCollectionsRaw();
+  saved.push({ name, filter: state.filter, refine: state.refine, search: state.search, sort: state.sort });
+  localStorage.setItem('inkbound_saved_filters', JSON.stringify(saved.slice(-8)));
+  showToast('Collection saved');
+}
+
+function getSavedFilterCollectionsRaw() {
+  try { return JSON.parse(localStorage.getItem('inkbound_saved_filters') || '[]'); }
+  catch { return []; }
+}
+
+function getSavedFilterCollections() {
+  return getSavedFilterCollectionsRaw().map((item, index) => ({
+    type: 'collection',
+    label: item.name,
+    detail: 'Saved filter collection',
+    run: () => applySavedFilterCollection(index),
+  }));
+}
+
+function applySavedFilterCollection(index) {
+  const item = getSavedFilterCollectionsRaw()[index];
+  if (!item) return;
+  state.filter = item.filter || state.filter;
+  state.refine = item.refine || state.refine;
+  state.search = item.search || '';
+  state.sort = item.sort || 'title';
+  document.getElementById('searchInput').value = state.search;
+  renderSidebar(state.categories, state.filter, handleCategoryClick, handleGenreClick);
+  renderFilterPill(state.filter.categoryName, state.filter.genreName);
+  renderSkeletons(8);
+  loadProducts();
+}
+
+function applyCategoryBySlug(slug) {
+  const category = state.categories.find(cat => cat.slug === slug);
+  if (!category) return;
+  state.filter = { categoryId: category.id, genreId: null, categoryName: displayCategoryName(category.name), genreName: '' };
+  renderSidebar(state.categories, state.filter, handleCategoryClick, handleGenreClick);
+  renderFilterPill(state.filter.categoryName, '');
+  state.pagination.page = 1;
+  renderSkeletons(8);
+  loadProducts();
+}
+
+function getCatalogHighlights() {
+  const all = window.INKBOUND_STATIC_CATALOG?.products || state.products || [];
+  const byRating = [...all].sort((a, b) => Number(b.goodreads_rating || 0) - Number(a.goodreads_rating || 0)).slice(0, 8);
+  const recent = getRecentlyViewed();
+  const newArrivals = [...all].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 8);
+  const trendingManga = all.filter(p => p.category_slug === 'manga').sort((a, b) => Number(b.goodreads_rating || 0) - Number(a.goodreads_rating || 0)).slice(0, 8);
+  const awardWinners = byRating.slice(0, 8);
+  const darkAcademia = all.filter(p => `${p.title} ${p.genre_name} ${p.description}`.toLowerCase().match(/dark|mystery|classic|horror|literary|school|secret/)).slice(0, 8);
+  const continueShopping = state.filter.categoryId
+    ? all.filter(p => p.category_id === state.filter.categoryId).slice(0, 8)
+    : recent;
+  return { byRating, recent, newArrivals, trendingManga, awardWinners, darkAcademia, continueShopping };
+}
+
+function rememberRecentlyViewed(product) {
+  try {
+    const key = 'inkbound_recently_viewed';
+    const current = JSON.parse(localStorage.getItem(key) || '[]').filter(id => id !== product.id);
+    localStorage.setItem(key, JSON.stringify([product.id, ...current].slice(0, 12)));
+    renderEditorialShelves(getCatalogHighlights());
+  } catch {}
+}
+
+function getRecentlyViewed() {
+  try {
+    const ids = JSON.parse(localStorage.getItem('inkbound_recently_viewed') || '[]');
+    const all = window.INKBOUND_STATIC_CATALOG?.products || [];
+    return ids.map(id => all.find(p => p.id === id)).filter(Boolean).slice(0, 8);
+  } catch { return []; }
+}
+
+async function handleAdminStatusChange(orderId, status) {
+  try {
+    await apiUpdateOrderStatus(orderId, status);
+    showToast(`Order #${orderId} marked ${status}`);
+    openAdminPanel();
+  } catch (err) {
+    showToast(err.message || 'Could not update order', 'error');
+  }
+}
+
+async function handleAdminUserUpdate(userId, field, value) {
+  try {
+    await apiUpdateAdminUser(userId, { [field]: value });
+    showToast('User updated');
+    openAdminPanel();
+  } catch (err) { showToast(err.message || 'Could not update user', 'error'); }
+}
+
+async function handleAdminProductSave(e, productId = null) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const data = {
+    title: form.title.value.trim(),
+    author: form.author.value.trim(),
+    price: Number(form.price.value || 0),
+    stock: Number(form.stock.value || 0),
+    category_id: Number(form.category_id.value || 1),
+    genre_id: Number(form.genre_id.value || 1),
+    image_url: form.image_url.value.trim(),
+    description: form.description.value.trim(),
+  };
+  try {
+    if (productId) await apiUpdateAdminProduct(productId, data);
+    else await apiCreateAdminProduct(data);
+    showToast(productId ? 'Product updated' : 'Product created');
+    openAdminPanel();
+  } catch (err) { showToast(err.message || 'Could not save product', 'error'); }
+}
+
+async function handleAdminProductDelete(productId) {
+  const ok = await requestConfirmation({
+    kicker: 'Product manager',
+    title: 'Delete this title?',
+    message: 'This removes the product from the catalog.',
+    confirmText: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await apiDeleteAdminProduct(productId);
+    showToast('Product deleted');
+    openAdminPanel();
+  } catch (err) { showToast(err.message || 'Could not delete product', 'error'); }
+}
+
 // ── Mobile cart ──────────────────────────────────────────────
 function toggleMobileCart() {
   const panel   = document.getElementById('cartPanel');
@@ -510,6 +887,7 @@ async function handleRegister(e) {
     closeAuthModal(); renderHeader();
     await loadCart();
     await loadWishlistIds();
+    emitAppSnapshot('register');
     showToast(`Welcome, ${res.data.user.username}! 🎉`);
   } catch (err) {
     if (errEl) errEl.textContent = err.message || 'Registration failed.';
@@ -533,8 +911,9 @@ async function handleLogin(e) {
     await loadCart();
     await loadWishlistIds();
     // Re-render products to show heart states
-    renderProducts(state.products, cartProductIds(), state.wishlistIds);
+    renderProducts(state.products, cartProductIds(), state.wishlistIds, false, state.viewMode);
     updateProductCount();
+    emitAppSnapshot('login');
     showToast(`Welcome back, ${res.data.user.username}!`);
   } catch (err) {
     if (errEl) errEl.textContent = err.message || 'Login failed. Please check your credentials.';
@@ -554,11 +933,13 @@ function handleLogout() {
   state.user = null; state.adminView = false; state.wishlistIds = new Set();
   localStorage.removeItem('inkbound_session');
   state.cart = { items: [], subtotal: 0, item_count: 0 };
-  renderCart(state.cart);
+  state.coupon = null;
+  renderCart(state.cart, state.coupon);
   renderHeader();
   // Re-render to remove heart states
-  renderProducts(state.products, new Set(), new Set());
+  renderProducts(state.products, new Set(), new Set(), false, state.viewMode);
   updateProductCount();
+  emitAppSnapshot('logout');
   document.getElementById('adminPanel').style.display = 'none';
   document.querySelector('.page-body').style.display  = '';
   showToast('Logged out');
@@ -573,12 +954,20 @@ async function openAdminPanel() {
   panel.style.display = 'block';
   panel.innerHTML = '<p class="admin-loading">Loading…</p>';
   try {
-    const [cartsRes, analyticsRes, ordersRes] = await Promise.all([
+    const [cartsRes, analyticsRes, ordersRes, usersRes, productsRes, reviewsRes] = await Promise.all([
       apiGetAllUserCarts(),
       apiGetAnalytics(),
       apiGetAllOrders(),
+      apiGetAdminUsers(),
+      apiGetAdminProducts(),
+      apiGetAdminReviews(),
     ]);
-    renderAdminPanel(cartsRes.data, analyticsRes.data, ordersRes.data);
+    renderAdminPanel(cartsRes.data, analyticsRes.data, ordersRes.data, {
+      users: usersRes.data,
+      products: productsRes.data,
+      reviews: reviewsRes.data,
+      categories: state.categories,
+    });
   } catch (err) {
     panel.innerHTML = `<p class="admin-error">⚠️ ${err.message}</p>`;
   }
@@ -607,8 +996,22 @@ function bindStaticEvents() {
     if (e.target === e.currentTarget) closeConfirmation(false);
   });
   document.addEventListener('keydown', e => {
+    const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openCommandPalette();
+      return;
+    }
+    if (!isTyping && e.key === '/') {
+      e.preventDefault();
+      openCommandPalette();
+      return;
+    }
     if (e.key === 'Escape') {
       closeConfirmation(false);
+      closeCommandPalette();
+      closeReceipt();
+      closeCheckout();
       closeProductModal();
       closeWishlist();
       closeOrders();
@@ -619,5 +1022,16 @@ function bindStaticEvents() {
   // Close autocomplete on outside click
   document.addEventListener('click', e => {
     if (!document.getElementById('searchBar')?.contains(e.target)) closeAutocomplete();
+  });
+  document.getElementById('commandPalette')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeCommandPalette();
+  });
+  document.getElementById('commandInput')?.addEventListener('input', e => {
+    renderCommandResults(e.target.value, getCommandResults(e.target.value));
+  });
+  document.getElementById('commandInput')?.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    executeCommand(0);
   });
 }

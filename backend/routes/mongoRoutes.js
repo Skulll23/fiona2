@@ -147,7 +147,11 @@ async function ensureMongoSeed() {
 
 async function getCartResponse({ sessionId, userId }) {
   const { carts, products } = await getCollections();
-  const query = userId ? { user_id: Number(userId) } : { session_id: sessionId };
+  const normalizedUserId = userId ? Number(userId) : null;
+  const sessionKeys = [sessionId, normalizedUserId ? `user_session_${normalizedUserId}` : null].filter(Boolean);
+  const query = normalizedUserId
+    ? { $or: [{ user_id: normalizedUserId }, { session_id: { $in: sessionKeys } }] }
+    : { session_id: sessionId };
   const lines = await carts.find(query).sort({ added_at: -1 }).toArray();
   const ids = lines.map(line => Number(line.product_id));
   const productRows = await products.find({ id: { $in: ids } }).toArray();
@@ -347,7 +351,9 @@ router.patch('/cart/:productId', async (req, res) => {
   const sessionId = req.headers['x-session-id'];
   const productId = Number(req.params.productId);
   const quantity = Math.max(1, Math.min(99, Number(req.body.quantity) || 1));
-  const query = user?.id ? { user_id: user.id, product_id: productId } : { session_id: sessionId, product_id: productId };
+  const query = user?.id
+    ? { product_id: productId, $or: [{ user_id: user.id }, { session_id: { $in: [sessionId, `user_session_${user.id}`].filter(Boolean) } }] }
+    : { session_id: sessionId, product_id: productId };
   const result = await carts.updateOne(query, { $set: { quantity, updated_at: new Date() } });
   if (!result.matchedCount) return res.status(404).json({ success: false, message: 'Item not in cart' });
   res.json({ success: true, message: 'Quantity updated', data: await getCartResponse({ sessionId, userId: user?.id }) });
@@ -358,7 +364,9 @@ router.delete('/cart/:productId', async (req, res) => {
   const user = getTokenUser(req);
   const sessionId = req.headers['x-session-id'];
   const productId = Number(req.params.productId);
-  const query = user?.id ? { user_id: user.id, product_id: productId } : { session_id: sessionId, product_id: productId };
+  const query = user?.id
+    ? { product_id: productId, $or: [{ user_id: user.id }, { session_id: { $in: [sessionId, `user_session_${user.id}`].filter(Boolean) } }] }
+    : { session_id: sessionId, product_id: productId };
   await carts.deleteOne(query);
   res.json({ success: true, message: 'Item removed', data: await getCartResponse({ sessionId, userId: user?.id }) });
 });
@@ -367,7 +375,9 @@ router.delete('/cart', async (req, res) => {
   const { carts } = await getCollections();
   const user = getTokenUser(req);
   const sessionId = req.headers['x-session-id'];
-  await carts.deleteMany(user?.id ? { user_id: user.id } : { session_id: sessionId });
+  await carts.deleteMany(user?.id
+    ? { $or: [{ user_id: user.id }, { session_id: { $in: [sessionId, `user_session_${user.id}`].filter(Boolean) } }] }
+    : { session_id: sessionId });
   res.json({ success: true, message: 'Cart cleared', data: { items: [], subtotal: 0, item_count: 0 } });
 });
 
@@ -433,7 +443,12 @@ router.post('/orders', requireUser, async (req, res) => {
   order.items = order.items.map(item => ({ ...item, order_id: order.id }));
   await orders.insertOne(order);
   await Promise.all(cart.items.map(item => products.updateOne({ id: item.product_id }, { $inc: { stock: -item.quantity } })));
-  await carts.deleteMany({ user_id: req.user.id });
+  await carts.deleteMany({
+    $or: [
+      { user_id: req.user.id },
+      { session_id: { $in: [req.headers['x-session-id'], `user_session_${req.user.id}`].filter(Boolean) } },
+    ],
+  });
   res.status(201).json({ success: true, message: 'Order placed!', data: { orderId: order.id, total, itemCount: cart.items.length, fulfillment_eta: order.fulfillment_eta } });
 });
 

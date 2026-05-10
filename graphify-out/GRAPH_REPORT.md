@@ -1,7 +1,7 @@
 # Graph Report - /Users/arpitgoyal/Desktop/fiona2  (2026-05-11)
 
 ## Corpus Check
-- 30 files · ~1,728,972 words
+- 30 files · ~1,730,020 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

@@ -3965,15 +3965,31 @@ body {
 .admin-orders-table,
 .admin-cart-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
 }
 
 .admin-orders-table th,
-.admin-orders-table td {
+.admin-orders-table td,
+.admin-cart-table th,
+.admin-cart-table td {
   padding: 14px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
   text-align: left;
   vertical-align: top;
+}
+
+.admin-orders-table thead tr,
+.admin-orders-table tbody tr,
+.admin-cart-table thead tr,
+.admin-cart-table tbody tr {
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.admin-orders-table tbody tr:last-child,
+.admin-cart-table tbody tr:last-child {
+  box-shadow: none;
 }
 
 .admin-orders-table th {
@@ -3988,17 +4004,36 @@ body {
   font-size: 13px;
 }
 
-.admin-orders-table td strong,
-.admin-orders-table td:first-child {
+.admin-orders-table td strong {
   display: block;
   color: var(--text);
 }
 
-.admin-orders-table td span {
+.admin-orders-table td:first-child {
+  color: var(--text);
+}
+
+.admin-orders-table td > span:not(.stars) {
   display: block;
   margin-top: 2px;
   color: var(--text-3);
   font-size: 12px;
+}
+
+.admin-orders-table .stars {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.admin-orders-table .stars span {
+  display: inline-block;
+}
+
+.admin-rating-cell {
+  white-space: nowrap;
 }
 
 @media (max-width: 1180px) {

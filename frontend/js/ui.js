@@ -505,6 +505,8 @@ function categoryTotals(orders = []) {
   };
 }
 
+const demoMonthlyRevenue = [420, 610, 360, 740, 520, 0];
+
 function monthlySales(orders = []) {
   const buckets = new Map();
   const labels = [];
@@ -512,8 +514,13 @@ function monthlySales(orders = []) {
     const date = new Date();
     date.setMonth(date.getMonth() - i);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    buckets.set(key, 0);
-    labels.push({ key, label: date.toLocaleDateString(undefined, { month: 'short' }) });
+    const demoRevenue = demoMonthlyRevenue[5 - i] || 0;
+    buckets.set(key, i === 0 ? 0 : demoRevenue);
+    labels.push({
+      key,
+      label: date.toLocaleDateString(undefined, { month: 'short' }),
+      isDemo: i !== 0 && demoRevenue > 0,
+    });
   }
   orders.forEach(order => {
     const date = new Date(order.created_at || Date.now());
@@ -521,9 +528,10 @@ function monthlySales(orders = []) {
     if (buckets.has(key)) buckets.set(key, buckets.get(key) + Number(order.total_amount || order.total || 0));
   });
   const max = Math.max(1, ...buckets.values());
-  return labels.map(({ key, label }) => ({
+  return labels.map(({ key, label, isDemo }) => ({
     label,
     total: buckets.get(key),
+    isDemo,
     height: Math.max(8, Math.round((buckets.get(key) / max) * 100)),
   }));
 }
@@ -730,7 +738,7 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
     <tr>
       <td>${escHtml(review.product?.title || `Product #${review.product_id}`)}</td>
       <td>${escHtml(review.username || 'Reader')}</td>
-      <td>${renderStars(Number(review.rating))}</td>
+      <td class="admin-rating-cell">${renderStars(Number(review.rating))}</td>
       <td>${escHtml(review.body || '')}</td>
       <td><button class="admin-mini-btn danger" onclick="handleDeleteReview(${Number(review.id)}, ${Number(review.product_id)});openAdminPanel()">Delete</button></td>
     </tr>`).join('');
@@ -750,7 +758,7 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
         <span>Sales chart and category mix</span>
       </div>
       <div class="admin-chart-grid">
-        <div class="admin-line-chart">${salesTrend.map(point => `<span style="--h:${point.height}%"><em>${escHtml(point.label)}</em></span>`).join('')}</div>
+        <div class="admin-line-chart">${salesTrend.map(point => `<span class="${point.isDemo ? 'demo-revenue' : ''}" style="--h:${point.height}%" title="$${Number(point.total || 0).toFixed(2)}${point.isDemo ? ' demo revenue' : ''}"><em>${escHtml(point.label)}</em></span>`).join('')}</div>
         <div class="admin-donut" style="--c1:${byCategory.c1}%;--c2:${byCategory.c2}%;--c3:${byCategory.c3}%"><strong>$${Number(totals.total_revenue || 0).toFixed(0)}</strong><span>revenue</span></div>
         <div class="low-stock-list">${lowStock.map(product => `<p><strong>${escHtml(product.title)}</strong><span>${Number(product.stock || 0)} left</span></p>`).join('') || '<p>No low-stock alerts.</p>'}</div>
       </div>

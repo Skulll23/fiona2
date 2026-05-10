@@ -1,16 +1,10 @@
-//Express + MySQL server
+// Express + MongoDB server
 const express       = require('express');
 const cors          = require('cors');
 const path          = require('path');
 require('dotenv').config();
 
-const productRoutes  = require('./routes/productRoutes');
-const cartRoutes     = require('./routes/cartRoutes');
-const authRoutes     = require('./routes/authRoutes');
-const adminRoutes    = require('./routes/adminRoutes');
-const wishlistRoutes = require('./routes/wishlistRoutes');
-const orderRoutes    = require('./routes/orderRoutes');
-const reviewRoutes   = require('./routes/reviewRoutes');
+const { router: mongoRoutes, ensureMongoSeed } = require('./routes/mongoRoutes');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -20,17 +14,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-app.use('/api/products',  productRoutes);
-app.use('/api/cart',      cartRoutes);
-app.use('/api/auth',      authRoutes);
-app.use('/api/admin',     adminRoutes);
-app.use('/api/wishlist',  wishlistRoutes);
-app.use('/api/orders',    orderRoutes);
-app.use('/api/reviews',   reviewRoutes);
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+app.use('/api', mongoRoutes);
 
 //SPA fallback
 app.get('*', (req, res) => {
@@ -43,6 +27,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Inkbound running at http://localhost:${PORT}\n`);
-});
+ensureMongoSeed()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`\n🚀 Inkbound running on MongoDB at http://localhost:${PORT}\n`);
+    });
+  })
+  .catch(err => {
+    console.error('MongoDB startup failed:', err.message);
+    process.exit(1);
+  });

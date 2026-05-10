@@ -8,7 +8,7 @@
 
 Most online bookstores separate readers into narrow shelves: novels in one place, manga in another, light novels somewhere else, and graphic novels treated like an afterthought. Inkbound solves this by giving every format a single curated storefront with fast search, genre-first browsing, saved carts, order history, and a polished black-and-white luxury interface.
 
-It is a full-stack e-commerce Single Page Application built with a React-enhanced frontend, an Express/MySQL backend, and a static fallback mode so the storefront still works directly from `frontend/index.html` without running the server.
+It is a full-stack e-commerce Single Page Application built with a React-enhanced frontend, an Express/MongoDB backend, and a static fallback mode so the storefront still works directly from `frontend/index.html` without running the server.
 
 ---
 
@@ -18,7 +18,7 @@ It is a full-stack e-commerce Single Page Application built with a React-enhance
 |------------|-------------------------------------------------|
 | Frontend   | React 18, HTML5, CSS3, JavaScript (ES6+)        |
 | Backend    | Node.js, Express 4                              |
-| Database   | MySQL 8, mysql2                                 |
+| Database   | MongoDB Community, native MongoDB Node driver   |
 | Auth       | JWT, bcryptjs, role-based admin access          |
 | Styling    | Pure CSS with CSS variables design system       |
 | Assets     | 500 local Open Library cover images             |
@@ -41,7 +41,7 @@ It is a full-stack e-commerce Single Page Application built with a React-enhance
 - **Wishlist** — save titles for later and add them to the cart from a side drawer
 - **Orders** — checkout creates saved orders, clears the cart, and shows the user’s order history
 - **Admin panel** — admin dashboard with all user carts, all orders from every account, product count, order count, users, and revenue
-- **CRUD coverage** — users, products, cart items, wishlists, reviews, and orders are created, read, updated, and/or deleted through Express routes and MySQL-backed tables
+- **CRUD coverage** — users, products, cart items, wishlists, reviews, and orders are created, read, updated, and/or deleted through Express routes and MongoDB collections
 - **Static fallback** — when opened via `file://`, `api.js` serves products, users, carts, wishlists, orders, reviews, and admin data from localStorage
 - **Accessibility** — labelled inputs, ARIA dialog roles, keyboard Escape handling, focusable product covers, and readable light/dark contrast
 - **Responsive** — mobile cart drawer, two-column mobile product cards, adaptive hero, and tablet/desktop grid layouts
@@ -54,7 +54,8 @@ It is a full-stack e-commerce Single Page Application built with a React-enhance
 fiona2/
 ├── backend/
 │   ├── config/
-│   │   └── db.js                  # MySQL connection pool
+│   │   ├── db.js                  # Legacy MySQL connection pool
+│   │   └── mongo.js               # MongoDB connection helper
 │   ├── controllers/
 │   │   ├── adminController.js     # Admin user-cart visibility
 │   │   ├── authController.js      # Register, login, JWT issue
@@ -67,7 +68,8 @@ fiona2/
 │   │   ├── productModel.js        # Product SQL helpers
 │   │   └── userModel.js           # User SQL helpers
 │   ├── routes/
-│   │   ├── adminRoutes.js         # Analytics, all orders, all carts
+│   │   ├── mongoRoutes.js         # Active MongoDB API routes
+│   │   ├── adminRoutes.js         # Legacy MySQL analytics/admin routes
 │   │   ├── authRoutes.js          # /auth/register, /auth/login, /auth/me
 │   │   ├── cartRoutes.js          # /cart CRUD endpoints
 │   │   ├── orderRoutes.js         # Checkout + user order history
@@ -82,7 +84,7 @@ fiona2/
 │   ├── .env.example               # Safe environment template
 │   └── package.json
 ├── database/
-│   ├── schema.sql                 # MySQL schema and seed data
+│   ├── schema.sql                 # Legacy MySQL schema and seed data
 │   ├── catalog_export.json        # Full 500-title JSON export
 │   └── migrate_add_auth.sql       # Auth/order-related migration
 ├── frontend/
@@ -110,7 +112,7 @@ fiona2/
 
 ### Prerequisites
 - Node.js 18+
-- MySQL 8+
+- MongoDB Community running locally
 
 ### 1. Install backend dependencies
 ```bash
@@ -124,15 +126,8 @@ Copy the example file and replace the placeholders:
 cp backend/.env.example backend/.env
 ```
 
-### 3. Create and seed the database
-```bash
-mysql -u root -p < ../database/schema.sql
-```
-
-If you already have the database and only need the auth/order migration:
-```bash
-mysql -u root -p inkbound < ../database/migrate_add_auth.sql
-```
+### 3. Database setup
+MongoDB seeds automatically the first time the backend starts. The app creates the `inkbound` database, loads the 500-book catalog from `database/catalog_export.json`, creates indexes, and inserts the demo admin account.
 
 ### 4. Start the backend server
 ```bash
@@ -145,12 +140,17 @@ npm start         # production
 Server will be available at `http://localhost:3000`.
 
 ### 5. Open the frontend
-Open this file in a browser:
+Recommended URL:
+```bash
+http://localhost:3000
+```
+
+You can also open this file directly in a browser:
 ```bash
 fiona2/frontend/index.html
 ```
 
-The frontend calls `/api` when the backend is available. If opened directly as a local file and the backend cannot be reached, it uses the static fallback catalog and localStorage so the demo remains usable.
+When opened directly as a local file, the frontend calls `http://localhost:3000/api` if the MongoDB backend is running. If the backend cannot be reached, it uses the static fallback catalog and localStorage so the demo remains usable.
 
 ---
 
@@ -175,13 +175,13 @@ The submitted repository does not track `backend/.env`; real secrets belong only
 |-------------|-------------------------|
 | Modern frontend library | React 18 is used in `frontend/js/react-widgets.js` for the live store dashboard; the rest of the SPA is coordinated through modular JavaScript files. |
 | Single-page app behavior | `frontend/index.html` is the only HTML page; the app rewrites views, modals, drawers, filters, admin screens, carts, and orders without page reloads. |
-| Backend + database | Node.js/Express routes work with MySQL tables declared in `database/schema.sql`. |
+| Backend + database | Node.js/Express routes work with MongoDB collections seeded from `database/catalog_export.json`. |
 | User auth | Registration/login use bcrypt password hashing and JWT tokens, with admin role checks in middleware. |
 | Live search | The search bar filters the catalog in real time and shows autocomplete suggestions with cover thumbnails. |
 | CRUD on at least three entities | Products have admin create/read/update/delete; carts have add/read/update/delete/clear; users have create/read/update/disable; wishlists, reviews, and orders add more database-backed entities. |
 | Admin profile/business logic | Admin can view all registered users, current carts, all orders from all accounts, reviews, product inventory, analytics, revenue, and low-stock alerts. |
 | Seamless interface | Checkout, confirmations, theme switching, quick view, wishlist, order history, command palette, and admin actions run in-place. |
-| Database export | `database/schema.sql` creates the full schema; `database/migrate_add_auth.sql` upgrades an older database without dropping existing data. |
+| Database export | `database/catalog_export.json` contains the full 500-title catalog export; MongoDB also persists live users, carts, wishlists, orders, reviews, and products. |
 
 ---
 
@@ -194,14 +194,14 @@ This submission is being completed individually by **Arpit Goyal**.
 | Frontend SPA and interaction logic | `frontend/index.html`, `frontend/js/app.js`, `frontend/js/ui.js`, `frontend/js/api.js`, `frontend/js/react-widgets.js` |
 | Visual design and responsive UI | `frontend/css/style.css`, `preview.png` |
 | Catalog and assets | `frontend/js/catalog.js`, `frontend/images/`, `backend/scripts/fetchCovers.js`, `backend/scripts/seedBooks*.js` |
-| Backend/API/database | `backend/server.js`, `backend/routes/`, `backend/controllers/`, `backend/models/`, `backend/middleware/`, `database/schema.sql`, `database/migrate_add_auth.sql` |
+| Backend/API/database | `backend/server.js`, `backend/routes/mongoRoutes.js`, `backend/config/mongo.js`, `backend/middleware/`, `database/catalog_export.json`, `database/schema.sql`, `database/migrate_add_auth.sql` |
 | Documentation/submission material | `README.md`, `.gitignore`, `backend/.env.example` |
 
 ---
 
 ## Challenges Overcome
 
-**Static API Fallback** — The project originally depended on a running Express/MySQL server, which caused `Failed to fetch` errors when opening `frontend/index.html` directly. I solved this by building a static API layer inside `api.js` that mirrors the backend endpoints for products, auth, carts, wishlists, orders, reviews, and admin data using `localStorage`.
+**Static API Fallback** — The project originally depended on a running backend, which caused `Failed to fetch` errors when opening `frontend/index.html` directly. I solved this by building a static API layer inside `api.js` that mirrors the backend endpoints for products, auth, carts, wishlists, orders, reviews, and admin data using `localStorage`.
 
 **500 Unique Books with Real Covers** — The first large catalog pass accidentally repeated variants of the same books. The catalog was rebuilt around 500 unique titles and paired with local Open Library cover images so cards display actual book covers instead of random placeholders.
 
@@ -219,14 +219,14 @@ This submission is being completed individually by **Arpit Goyal**.
 
 ## Database Export
 
-`database/schema.sql` contains tables for categories, genres, products, users, cart items, wishlists, orders, order items, and reviews. The full 500-title export is included as `database/catalog_export.json`, and the same catalog powers the offline demo path in `frontend/js/catalog.js`.
+The MongoDB backend seeds from `database/catalog_export.json`, which contains the full 500-title export. Runtime collections store users, products, carts, wishlists, orders, and reviews in the `inkbound` database.
 
-To export the MySQL database for submission or backup:
+To export the live MongoDB database for submission or backup:
 ```bash
-mysqldump -u root -p inkbound > inkbound.sql
+mongodump --db inkbound --out database/mongo-dump
 ```
 
 To restore it later:
 ```bash
-mysql -u root -p inkbound < inkbound.sql
+mongorestore --drop --db inkbound database/mongo-dump/inkbound
 ```

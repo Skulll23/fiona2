@@ -1,6 +1,8 @@
 //All backend communication. This will make fetch request and return raw data. It will not do any DOM manipulation or UI rendering, which is handled in ui.js
 
-const API_BASE = '/api';
+const API_BASE = window.location.protocol === 'file:'
+  ? 'http://localhost:3000/api'
+  : '/api';
 
 // ── Session ────────────────────────────────────────────────────
 // When logged in:  use a stable user-specific key so every user has

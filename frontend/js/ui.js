@@ -633,14 +633,15 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
   }
 
   const statCards = [
-    ['Users', totals.total_users ?? userList.filter(user => user.role !== 'admin').length],
-    ['Products', totals.total_products ?? totals.total_books ?? window.INKBOUND_STATIC_CATALOG?.products?.length ?? 0],
-    ['Orders', totals.total_orders ?? orderList.length],
-    ['Revenue', `$${Number(totals.total_revenue || 0).toFixed(2)}`],
-    ['Low Stock', lowStock.length],
-  ].map(([label, value]) => `
-    <div class="admin-stat-card">
-      <span>${escHtml(label)}</span>
+    ['Users', totals.total_users ?? userList.filter(user => user.role !== 'admin').length, 'users'],
+    ['Products', totals.total_products ?? totals.total_books ?? window.INKBOUND_STATIC_CATALOG?.products?.length ?? 0, 'products'],
+    ['Orders', totals.total_orders ?? orderList.length, 'orders'],
+    ['Revenue', `$${Number(totals.total_revenue || 0).toFixed(2)}`, 'revenue'],
+    ['Low Stock', lowStock.length, 'stock'],
+  ].map(([label, value, icon]) => `
+    <div class="admin-stat-card admin-stat-card-${icon}">
+      <span class="admin-stat-icon admin-stat-icon-${icon}" aria-hidden="true"></span>
+      <span class="admin-stat-label">${escHtml(label)}</span>
       <strong>${escHtml(value)}</strong>
     </div>`).join('');
 

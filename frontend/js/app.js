@@ -941,15 +941,23 @@ function handleLogout() {
   updateProductCount();
   emitAppSnapshot('logout');
   document.getElementById('adminPanel').style.display = 'none';
-  document.querySelector('.page-body').style.display  = '';
+  setStoreChromeVisible(true);
   showToast('Logged out');
   });
 }
 
 // ── Admin panel ──────────────────────────────────────────────
+function setStoreChromeVisible(visible) {
+  document.body.classList.toggle('admin-open', !visible);
+  ['.hero', '#editorialShelves', '#reactAssignmentDashboard', '.page-body'].forEach(selector => {
+    const el = document.querySelector(selector);
+    if (el) el.style.display = visible ? '' : 'none';
+  });
+}
+
 async function openAdminPanel() {
   state.adminView = true;
-  document.querySelector('.page-body').style.display = 'none';
+  setStoreChromeVisible(false);
   const panel = document.getElementById('adminPanel');
   panel.style.display = 'block';
   panel.innerHTML = '<p class="admin-loading">Loading…</p>';
@@ -976,7 +984,7 @@ async function openAdminPanel() {
 function closeAdminPanel() {
   state.adminView = false;
   document.getElementById('adminPanel').style.display = 'none';
-  document.querySelector('.page-body').style.display  = '';
+  setStoreChromeVisible(true);
 }
 
 // ── Static event bindings ────────────────────────────────────

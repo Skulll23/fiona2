@@ -648,7 +648,7 @@ function closeCommandPalette() {
 function getCommandResults(query) {
   const q = query.trim().toLowerCase();
   const actions = [
-    { type: 'action', label: 'Open wishlist', detail: 'Saved books', run: () => openWishlist() },
+    ...(state.user?.role === 'admin' ? [] : [{ type: 'action', label: 'Open wishlist', detail: 'Saved books', run: () => openWishlist() }]),
     { type: 'action', label: 'Open orders', detail: 'Order history', run: () => openOrders() },
     { type: 'action', label: 'Toggle theme', detail: 'Light / dark', run: () => handleThemeToggle() },
     { type: 'action', label: 'Shelf view', detail: 'Editorial browsing layout', run: () => setViewMode('shelf') },
@@ -886,7 +886,8 @@ async function handleRegister(e) {
     setToken(res.data.token); setStoredUser(res.data.user); state.user = res.data.user;
     closeAuthModal(); renderHeader();
     await loadCart();
-    await loadWishlistIds();
+    if (state.user.role === 'admin') state.wishlistIds = new Set();
+    else await loadWishlistIds();
     emitAppSnapshot('register');
     showToast(`Welcome, ${res.data.user.username}! 🎉`);
   } catch (err) {
@@ -909,7 +910,8 @@ async function handleLogin(e) {
     setToken(res.data.token); setStoredUser(res.data.user); state.user = res.data.user;
     closeAuthModal(); renderHeader();
     await loadCart();
-    await loadWishlistIds();
+    if (state.user.role === 'admin') state.wishlistIds = new Set();
+    else await loadWishlistIds();
     // Re-render products to show heart states
     renderProducts(state.products, cartProductIds(), state.wishlistIds, false, state.viewMode);
     updateProductCount();

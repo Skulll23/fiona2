@@ -1,12 +1,12 @@
-# Graph Report - /Users/arpitgoyal/Desktop/fiona2  (2026-05-11)
+# Graph Report - /Users/arpitgoyal/Desktop/fiona2  (2026-05-16)
 
 ## Corpus Check
-- 30 files · ~1,730,129 words
+- 8 files · ~1,843,788 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 244 nodes · 500 edges · 33 communities detected
-- Extraction: 76% EXTRACTED · 24% INFERRED · 0% AMBIGUOUS · INFERRED: 122 edges (avg confidence: 0.8)
+- 179 nodes · 420 edges · 13 communities detected
+- Extraction: 71% EXTRACTED · 29% INFERRED · 0% AMBIGUOUS · INFERRED: 122 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -23,41 +23,21 @@
 - [[_COMMUNITY_Community 10|Community 10]]
 - [[_COMMUNITY_Community 11|Community 11]]
 - [[_COMMUNITY_Community 12|Community 12]]
-- [[_COMMUNITY_Community 13|Community 13]]
-- [[_COMMUNITY_Community 14|Community 14]]
-- [[_COMMUNITY_Community 15|Community 15]]
-- [[_COMMUNITY_Community 16|Community 16]]
-- [[_COMMUNITY_Community 17|Community 17]]
-- [[_COMMUNITY_Community 18|Community 18]]
-- [[_COMMUNITY_Community 19|Community 19]]
-- [[_COMMUNITY_Community 20|Community 20]]
-- [[_COMMUNITY_Community 21|Community 21]]
-- [[_COMMUNITY_Community 22|Community 22]]
-- [[_COMMUNITY_Community 23|Community 23]]
-- [[_COMMUNITY_Community 24|Community 24]]
-- [[_COMMUNITY_Community 25|Community 25]]
-- [[_COMMUNITY_Community 26|Community 26]]
-- [[_COMMUNITY_Community 27|Community 27]]
-- [[_COMMUNITY_Community 28|Community 28]]
-- [[_COMMUNITY_Community 29|Community 29]]
-- [[_COMMUNITY_Community 30|Community 30]]
-- [[_COMMUNITY_Community 31|Community 31]]
-- [[_COMMUNITY_Community 32|Community 32]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `apiFetch()` - 36 edges
-2. `staticApiFetch()` - 20 edges
-3. `showToast()` - 19 edges
-4. `loadProducts()` - 17 edges
-5. `emitAppSnapshot()` - 13 edges
-6. `handleLogin()` - 13 edges
-7. `openAdminPanel()` - 13 edges
-8. `renderSkeletons()` - 10 edges
-9. `renderCart()` - 10 edges
-10. `handleRegister()` - 10 edges
+1. `apiFetch()` - 35 edges
+2. `showToast()` - 19 edges
+3. `loadProducts()` - 17 edges
+4. `emitAppSnapshot()` - 13 edges
+5. `handleLogin()` - 13 edges
+6. `openAdminPanel()` - 13 edges
+7. `renderSkeletons()` - 10 edges
+8. `renderCart()` - 10 edges
+9. `handleRegister()` - 10 edges
+10. `submitCheckout()` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `showToast()` --calls--> `handleAddToCart()`  [INFERRED]
+- `showCartError()` --calls--> `loadCart()`  [INFERRED]
   /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
 - `showToast()` --calls--> `handleWishlistToggle()`  [INFERRED]
   /Users/arpitgoyal/Desktop/fiona2/frontend/js/ui.js → /Users/arpitgoyal/Desktop/fiona2/frontend/js/app.js
@@ -71,193 +51,77 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.09
-Nodes (34): fetchCategories(), fetchProducts(), applyCategoryBySlug(), applyCollection(), applySavedFilterCollection(), clearAdvancedFilters(), clearSearch(), closeAdminPanel() (+26 more)
+Cohesion: 0.1
+Nodes (32): applyCategoryBySlug(), applyCollection(), applySavedFilterCollection(), clearAdvancedFilters(), clearSearch(), closeAdminPanel(), closeAutocomplete(), closeCommandPalette() (+24 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.13
-Nodes (32): buildStaticCart(), clearStaticSession(), currentStaticUserFromToken(), defaultStaticUsers(), generateUUID(), getSessionId(), getStoredUser(), getToken() (+24 more)
+Cohesion: 0.1
+Nodes (19): calculateCheckoutTotals(), openCheckout(), openModal(), rememberRecentlyViewed(), adminStockMeta(), authorBio(), categoryTotals(), cleanImageUrl() (+11 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.09
-Nodes (23): fetchOrders(), fetchWishlist(), calculateCheckoutTotals(), openAuthModal(), openCheckout(), openOrders(), openWishlist(), switchAuthView() (+15 more)
+Cohesion: 0.19
+Nodes (20): addToCart(), addToWishlist(), apiDeleteAdminProduct(), apiFetch(), apiGetMe(), apiLogin(), apiRegister(), clearCart() (+12 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.15
-Nodes (21): apiDeleteAdminProduct(), apiUpdateOrderStatus(), clearCart(), placeOrder(), removeCartItem(), removeStoredUser(), removeToken(), updateCartItem() (+13 more)
+Cohesion: 0.19
+Nodes (17): setStoredUser(), setToken(), cartProductIds(), closeAuthModal(), emitAppSnapshot(), getAppSnapshot(), handleLogin(), handleRegister() (+9 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.14
-Nodes (21): addToCart(), apiLogin(), apiRegister(), fetchCart(), fetchWishlistIds(), setStoredUser(), setToken(), cartProductIds() (+13 more)
+Cohesion: 0.23
+Nodes (16): removeStoredUser(), removeToken(), closeCheckout(), handleAddToCart(), handleAdminProductDelete(), handleApplyCoupon(), handleCheckout(), handleClearCart() (+8 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.17
-Nodes (18): addToWishlist(), apiCreateAdminProduct(), apiFetch(), apiGetAdminProducts(), apiGetAdminReviews(), apiGetAdminUsers(), apiGetAllOrders(), apiGetAllUserCarts() (+10 more)
-
-### Community 6 - "Community 6"
 Cohesion: 0.16
 Nodes (7): connectMongo(), ensureMongoSeed(), getCartResponse(), getCollections(), getTokenUser(), requireUser(), userFromDb()
 
+### Community 6 - "Community 6"
+Cohesion: 0.18
+Nodes (11): apiGetAdminProducts(), apiGetAdminReviews(), apiGetAdminUsers(), apiGetAllOrders(), apiGetAllUserCarts(), apiGetAnalytics(), apiUpdateAdminUser(), apiUpdateOrderStatus() (+3 more)
+
 ### Community 7 - "Community 7"
-Cohesion: 0.22
-Nodes (11): deleteReview(), fetchReviews(), fetchSimilar(), submitReview(), handleDeleteReview(), handleSubmitReview(), openModal(), rememberRecentlyViewed() (+3 more)
+Cohesion: 0.2
+Nodes (11): clearLegacySession(), deleteReview(), fetchReviews(), generateUUID(), getSessionId(), getStoredUser(), getToken(), submitReview() (+3 more)
 
 ### Community 8 - "Community 8"
+Cohesion: 0.33
+Nodes (6): handleWishlistToggle(), openAuthModal(), openOrders(), switchAuthView(), renderAuthModal(), renderOrderHistory()
+
+### Community 9 - "Community 9"
 Cohesion: 0.5
 Nodes (2): formatMoney(), ReactAssignmentDashboard()
 
-### Community 9 - "Community 9"
-Cohesion: 0.7
-Nodes (4): fetchCoverUrl(), httpsGet(), main(), sleep()
-
 ### Community 10 - "Community 10"
-Cohesion: 0.4
-Nodes (0):
+Cohesion: 0.67
+Nodes (3): apiCreateAdminProduct(), apiUpdateAdminProduct(), handleAdminProductSave()
 
 ### Community 11 - "Community 11"
-Cohesion: 0.5
+Cohesion: 1.0
 Nodes (0):
 
 ### Community 12 - "Community 12"
-Cohesion: 0.5
-Nodes (0):
-
-### Community 13 - "Community 13"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 14 - "Community 14"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 15 - "Community 15"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 16 - "Community 16"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 17 - "Community 17"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 18 - "Community 18"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 19 - "Community 19"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 20 - "Community 20"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 21 - "Community 21"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 22 - "Community 22"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 23 - "Community 23"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 24 - "Community 24"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 25 - "Community 25"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 26 - "Community 26"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 27 - "Community 27"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 28 - "Community 28"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 29 - "Community 29"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 30 - "Community 30"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 31 - "Community 31"
-Cohesion: 1.0
-Nodes (0):
-
-### Community 32 - "Community 32"
 Cohesion: 1.0
 Nodes (0):
 
 ## Knowledge Gaps
-- **Thin community `Community 13`** (2 nodes): `testConnection()`, `db.js`
+- **Thin community `Community 11`** (1 nodes): `catalog.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 14`** (2 nodes): `seed()`, `seedBooks3.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 15`** (2 nodes): `seed()`, `seedBooks2.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 16`** (2 nodes): `migrate()`, `migrate.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 17`** (2 nodes): `seed()`, `seedBooks4.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 18`** (2 nodes): `extractUserId()`, `orderRoutes.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 19`** (1 nodes): `catalog.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 20`** (1 nodes): `server.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 21`** (1 nodes): `cartModel.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 22`** (1 nodes): `userModel.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 23`** (1 nodes): `productModel.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 24`** (1 nodes): `adminController.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 25`** (1 nodes): `productController.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 26`** (1 nodes): `authController.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 27`** (1 nodes): `productRoutes.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 28`** (1 nodes): `authRoutes.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 29`** (1 nodes): `cartRoutes.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (1 nodes): `adminRoutes.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 31`** (1 nodes): `wishlistRoutes.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (1 nodes): `reviewRoutes.js`
+- **Thin community `Community 12`** (1 nodes): `server.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `openAdminPanel()` connect `Community 5` to `Community 0`, `Community 2`, `Community 3`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Why does `apiFetch()` connect `Community 5` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 7`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
-- **Why does `getStoredUser()` connect `Community 1` to `Community 2`, `Community 7`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Community 4` to `Community 0`, `Community 1`, `Community 3`, `Community 6`, `Community 7`, `Community 8`, `Community 10`?**
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._
+- **Why does `openAdminPanel()` connect `Community 6` to `Community 0`, `Community 1`, `Community 10`, `Community 4`?**
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
+- **Why does `apiFetch()` connect `Community 2` to `Community 10`, `Community 6`, `Community 7`?**
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
 - **Are the 18 inferred relationships involving `showToast()` (e.g. with `handleAddToCart()` and `handleUpdateQty()`) actually correct?**
   _`showToast()` has 18 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 2 inferred relationships involving `loadProducts()` (e.g. with `fetchProducts()` and `renderProducts()`) actually correct?**
   _`loadProducts()` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 6 inferred relationships involving `handleLogin()` (e.g. with `apiLogin()` and `setToken()`) actually correct?**
+  _`handleLogin()` has 6 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.09 - nodes in this community are weakly interconnected._
-- **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.13 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1 - nodes in this community are weakly interconnected._

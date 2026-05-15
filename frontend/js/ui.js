@@ -195,18 +195,19 @@ function renderProducts(products, cartIds = new Set(), wishlistIds = new Set(), 
 
   grid.innerHTML = products.map((p, i) => {
     const inCart = cartIds.has(p.id);
+    const isAdmin = getStoredUser()?.role === 'admin';
     const wished = wishlistIds.has(p.id);
     const discounted = Number(p.id) % 9 === 0;
     const oldPrice = discounted ? Number(p.price) * 1.18 : null;
     return `
       <article class="product-card" style="animation-delay:${i * 0.035}s" aria-label="${escHtml(p.title)}">
-        <button
+        ${isAdmin ? '' : `<button
           class="heart-btn ${wished ? 'wishlisted' : ''}"
           data-product-id="${p.id}"
           onclick="event.stopPropagation();handleWishlistToggle(${p.id})"
           aria-label="${wished ? 'Remove from wishlist' : 'Save to wishlist'}"
           title="${wished ? 'Saved' : 'Save to wishlist'}"
-        >${wished ? '♥' : '♡'}</button>
+        >${wished ? '♥' : '♡'}</button>`}
         ${Number(p.stock) <= 0 ? '<span class="out-of-stock-badge">Sold out</span>' : ''}
         ${Number(p.stock) > 0 && Number(p.stock) <= 12 ? '<span class="low-stock-badge">Low stock</span>' : ''}
         ${discounted ? '<span class="discount-badge">Sale</span>' : ''}
@@ -230,7 +231,7 @@ function renderProducts(products, cartIds = new Set(), wishlistIds = new Set(), 
           />  
           <div class="quick-actions">
             <button onclick="event.stopPropagation();openModal(${p.id})">Quick view</button>
-            <button onclick="event.stopPropagation();handleWishlistToggle(${p.id})">${wished ? 'Saved' : 'Save'}</button>
+            ${isAdmin ? '' : `<button onclick="event.stopPropagation();handleWishlistToggle(${p.id})">${wished ? 'Saved' : 'Save'}</button>`}
           </div>
         </div>
         <div class="card-body">
@@ -565,9 +566,10 @@ function renderHeader() {
         ${user.role === 'admin'
           ? `<button class="admin-btn" onclick="openAdminPanel()" title="Admin Panel">Admin</button>`
           : ''}
-        <button class="nav-action-btn" onclick="openWishlist()" aria-label="Open wishlist">Wishlist</button>
+        ${user.role === 'admin'
+          ? ''
+          : `<button class="nav-action-btn" onclick="openWishlist()" aria-label="Open wishlist">Wishlist</button>`}
         <button class="nav-action-btn" onclick="openOrders()" aria-label="Open order history">Orders</button>
-        <button class="nav-action-btn" onclick="openCommandPalette()" aria-label="Open command palette">Search</button>
         <button class="logout-btn" onclick="handleLogout()" aria-label="Logout">Logout</button>
       </div>`;
   } else {
@@ -617,6 +619,44 @@ function renderAuthModal(view) {
 
 // ── Admin Panel ───────────────────────────────────────────────
 // Renders all users, current carts, analytics, and saved orders.
+function adminStockMeta(stockValue) {
+  const stock = Number(stockValue || 0);
+  if (stock <= 0) return { className: 'soldout', label: 'Sold out', detail: 'reorder now', percent: 0 };
+  if (stock <= 8) return { className: 'critical', label: 'Critical', detail: `${stock} left`, percent: Math.max(8, stock * 6) };
+  if (stock <= 20) return { className: 'low', label: 'Low stock', detail: `${stock} left`, percent: Math.min(72, 22 + stock * 3) };
+  return { className: 'healthy', label: 'In stock', detail: `${stock} available`, percent: Math.min(100, 45 + stock) };
+}
+
+function renderAdminStock(stockValue) {
+  const meta = adminStockMeta(stockValue);
+  return `
+    <div class="admin-stock-pill admin-stock-${meta.className}" title="${escHtml(meta.label)}: ${escHtml(meta.detail)}">
+      <span>${escHtml(meta.label)}</span>
+      <em>${escHtml(meta.detail)}</em>
+      <i style="--stock:${meta.percent}%"></i>
+    </div>`;
+}
+
+function openAdminTab(tabName) {
+  document.querySelectorAll('[data-admin-tab-panel]').forEach(panel => {
+    panel.hidden = panel.dataset.adminTabPanel !== tabName;
+  });
+  document.querySelectorAll('[data-admin-tab]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.adminTab === tabName);
+  });
+  const panel = document.querySelector(`[data-admin-tab-panel="${tabName}"]`);
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function openAdminUserDetails(userId) {
+  const target = document.getElementById(`adminUserDetails_${Number(userId)}`);
+  if (!target) return;
+  document.querySelectorAll('[data-admin-tab-panel]').forEach(panel => { panel.hidden = true; });
+  document.querySelectorAll('[data-admin-tab]').forEach(btn => btn.classList.remove('active'));
+  target.hidden = false;
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) {
   const panel = document.getElementById('adminPanel');
   const userList = Array.isArray(users) ? users : [];
@@ -634,7 +674,7 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
     panel.innerHTML = `
       <div class="admin-header">
         <h2 class="admin-title">Admin</h2>
-        <button class="admin-close-btn" onclick="closeAdminPanel()">← Back to Store</button>
+        <button class="admin-close-btn" onclick="closeAdminPanel()">Back to Store</button>
       </div>
       <p class="admin-empty">No users or orders yet.</p>`;
     return;
@@ -654,9 +694,7 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
     </div>`).join('');
 
   const orderRows = orderList.length
-    ? orderList.map(order => {
-      const items = Array.isArray(order.items) ? order.items : [];
-      return `
+    ? orderList.map(order => `
         <tr>
           <td>#${escHtml(order.id || order.order_id)}</td>
           <td>
@@ -664,7 +702,6 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
             <span>${escHtml(order.email || '')}</span>
           </td>
           <td>${escHtml(order.created_at ? new Date(order.created_at).toLocaleString() : 'Recent')}</td>
-          <td>${escHtml(items.map(item => `${item.title} x${item.quantity}`).join(', ') || 'No line items')}</td>
           <td>
             <select class="admin-status-select" onchange="handleAdminStatusChange(${Number(order.id || order.order_id)}, this.value)">
               ${['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled'].map(status => `
@@ -673,58 +710,77 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
             </select>
           </td>
           <td class="admin-num">$${Number(order.total_amount || order.total || 0).toFixed(2)}</td>
-        </tr>`;
-    }).join('')
-    : '<tr><td colspan="6" class="admin-empty-cart">No orders have been placed yet.</td></tr>';
+        </tr>`).join('')
+    : '<tr><td colspan="5" class="admin-empty-cart">No orders have been placed yet.</td></tr>';
 
-  const rows = userList.map(user => {
+  const cartDirectory = userList.map(user => {
     const cart = user.cart || { items: [], item_count: 0, subtotal: 0 };
-    const cartHtml = cart.items.length
+    return `
+      <button class="admin-person-row" onclick="openAdminUserDetails(${Number(user.id)})" aria-label="Open details for ${escHtml(user.username)}">
+        <span class="admin-user-avatar">${escHtml(String(user.username || '?')[0].toUpperCase())}</span>
+        <span>
+          <strong>${escHtml(user.username)}</strong>
+          <em>${escHtml(user.email)}</em>
+        </span>
+        <b>${Number(cart.item_count || 0)} item${Number(cart.item_count || 0) !== 1 ? 's' : ''}</b>
+        <i>$${Number(cart.subtotal || 0).toFixed(2)}</i>
+        <small>Details</small>
+      </button>`;
+  }).join('');
+
+  const userDetailPages = userList.map(user => {
+    const cart = user.cart || { items: [], item_count: 0, subtotal: 0 };
+    const cartRows = cart.items.length
       ? cart.items.map(item => `
           <tr>
-            <td>${escHtml(item.title)}</td>
-            <td>${escHtml(item.author)}</td>
+            <td>
+              <strong>${escHtml(item.title)}</strong>
+              <span>${escHtml(item.author)}</span>
+            </td>
             <td>${escHtml(displayCategoryName(item.category_name))}</td>
-            <td class="admin-num">x${item.quantity}</td>
-            <td class="admin-num">$${parseFloat(item.line_total).toFixed(2)}</td>
+            <td class="admin-num">$${Number(item.price || item.unit_price || 0).toFixed(2)}</td>
+            <td class="admin-num">x${Number(item.quantity || 0)}</td>
+            <td class="admin-num">$${Number(item.line_total || 0).toFixed(2)}</td>
           </tr>`).join('')
-      : `<tr><td colspan="5" class="admin-empty-cart">Empty cart</td></tr>`;
-
+      : `<tr><td colspan="5" class="admin-empty-cart">This user cart is empty.</td></tr>`;
     return `
-      <div class="admin-user-card">
-        <div class="admin-user-head">
-          <span class="admin-user-avatar">${escHtml(user.username[0].toUpperCase())}</span>
+      <section class="admin-section admin-tab-panel admin-detail-page" id="adminUserDetails_${Number(user.id)}" data-admin-tab-panel="details-${Number(user.id)}" hidden>
+        <div class="admin-section-head admin-detail-head">
           <div>
-          <span class="admin-user-name">${escHtml(user.username)}</span>
-            <span class="admin-user-email">${escHtml(user.email)}</span>
+            <h3>${escHtml(user.username)} Cart Details</h3>
+            <span>${escHtml(user.email)} - ${Number(cart.item_count || 0)} item${Number(cart.item_count || 0) !== 1 ? 's' : ''} - $${Number(cart.subtotal || 0).toFixed(2)}</span>
           </div>
-          <span class="admin-role-badge admin-role-${user.role}">${user.role}</span>
-          <span class="admin-cart-total">${cart.item_count} item${cart.item_count !== 1 ? 's' : ''} · $${Number(cart.subtotal || 0).toFixed(2)}</span>
+          <button class="admin-mini-btn" onclick="openAdminTab('users')">Back to users</button>
         </div>
-        <table class="admin-cart-table">
-          <thead>
-            <tr>
-              <th>Title</th><th>Author</th><th>Category</th>
-              <th class="admin-num">Qty</th><th class="admin-num">Total</th>
-            </tr>
-          </thead>
-          <tbody>${cartHtml}</tbody>
-        </table>
-      </div>`;
+        <div class="admin-table-wrap">
+          <table class="admin-orders-table">
+            <thead><tr><th>Title</th><th>Category</th><th class="admin-num">Unit</th><th class="admin-num">Qty</th><th class="admin-num">Line total</th></tr></thead>
+            <tbody>${cartRows}</tbody>
+          </table>
+        </div>
+      </section>`;
   }).join('');
-  const productRows = productList.slice(0, 20).map(product => `
+
+  const productRows = productList.slice(0, 35).map(product => `
     <tr>
       <td>${escHtml(product.title)}</td>
       <td>${escHtml(product.author)}</td>
       <td><input class="admin-inline-input" value="${Number(product.price).toFixed(2)}" onchange="apiUpdateAdminProduct(${product.id},{price:this.value}).then(openAdminPanel)" /></td>
-      <td><input class="admin-inline-input" value="${Number(product.stock || 0)}" onchange="apiUpdateAdminProduct(${product.id},{stock:this.value}).then(openAdminPanel)" /></td>
+      <td>
+        <div class="admin-stock-cell">
+          <input class="admin-inline-input" value="${Number(product.stock || 0)}" onchange="apiUpdateAdminProduct(${product.id},{stock:this.value}).then(openAdminPanel)" />
+          ${renderAdminStock(product.stock)}
+        </div>
+      </td>
       <td><button class="admin-mini-btn danger" onclick="handleAdminProductDelete(${product.id})">Delete</button></td>
     </tr>`).join('');
   const categoryOptions = categories.map(cat => `<option value="${cat.id}">${escHtml(displayCategoryName(cat.name))}</option>`).join('');
   const genreOptions = categories.flatMap(cat => cat.genres || []).map(genre => `<option value="${genre.id}">${escHtml(genre.name)}</option>`).join('');
   const userRows = allUsers.map(user => `
     <tr>
-      <td>${escHtml(user.username)}</td>
+      <td>
+        <button class="admin-link-cell" onclick="openAdminUserDetails(${Number(user.id)})">${escHtml(user.username)}</button>
+      </td>
       <td>${escHtml(user.email)}</td>
       <td>
         <select class="admin-status-select" onchange="handleAdminUserUpdate(${user.id}, 'role', this.value)">
@@ -749,45 +805,52 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
         <span class="admin-kicker">Store command</span>
         <h2 class="admin-title">Admin Control Room</h2>
       </div>
-      <button class="admin-close-btn" onclick="closeAdminPanel()">← Back to Store</button>
+      <button class="admin-close-btn" onclick="closeAdminPanel()">Back to Store</button>
     </div>
-    <div class="admin-stat-grid">${statCards}</div>
-    <section class="admin-section admin-visuals">
+    <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+      <button class="admin-tab active" data-admin-tab="overview" onclick="openAdminTab('overview')">Overview</button>
+      <button class="admin-tab" data-admin-tab="users" onclick="openAdminTab('users')">Users & Carts</button>
+      <button class="admin-tab" data-admin-tab="products" onclick="openAdminTab('products')">Product Manager</button>
+      <button class="admin-tab" data-admin-tab="reviews" onclick="openAdminTab('reviews')">Reviews</button>
+    </div>
+    <section class="admin-tab-panel" data-admin-tab-panel="overview">
+      <div class="admin-stat-grid">${statCards}</div>
+      <section class="admin-section admin-visuals">
+        <div class="admin-section-head">
+          <h3>Store Analytics</h3>
+          <span>Sales chart, category mix, and stock signals</span>
+        </div>
+        <div class="admin-chart-grid">
+          <div class="admin-line-chart">${salesTrend.map(point => `<span class="${point.isDemo ? 'demo-revenue' : ''}" style="--h:${point.height}%" title="$${Number(point.total || 0).toFixed(2)}${point.isDemo ? ' demo revenue' : ''}"><em>${escHtml(point.label)}</em></span>`).join('')}</div>
+          <div class="admin-donut" style="--c1:${byCategory.c1}%;--c2:${byCategory.c2}%;--c3:${byCategory.c3}%"><strong>$${Number(totals.total_revenue || 0).toFixed(0)}</strong><span>revenue</span></div>
+          <div class="low-stock-list">${lowStock.map(product => `<p><strong>${escHtml(product.title)}</strong>${renderAdminStock(product.stock)}</p>`).join('') || '<p>No low-stock alerts.</p>'}</div>
+        </div>
+      </section>
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <h3>All Orders</h3>
+          <span>${orderList.length} order${orderList.length !== 1 ? 's' : ''} across every account</span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-orders-table">
+            <thead><tr><th>Order ID</th><th>User</th><th>Date</th><th>Status</th><th class="admin-num">Total</th></tr></thead>
+            <tbody>${orderRows}</tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+    <section class="admin-section admin-tab-panel" data-admin-tab-panel="users" hidden>
       <div class="admin-section-head">
-        <h3>Store Analytics</h3>
-        <span>Sales chart and category mix</span>
+        <h3>User Manager</h3>
+        <span>Click a person to open their cart details page</span>
       </div>
-      <div class="admin-chart-grid">
-        <div class="admin-line-chart">${salesTrend.map(point => `<span class="${point.isDemo ? 'demo-revenue' : ''}" style="--h:${point.height}%" title="$${Number(point.total || 0).toFixed(2)}${point.isDemo ? ' demo revenue' : ''}"><em>${escHtml(point.label)}</em></span>`).join('')}</div>
-        <div class="admin-donut" style="--c1:${byCategory.c1}%;--c2:${byCategory.c2}%;--c3:${byCategory.c3}%"><strong>$${Number(totals.total_revenue || 0).toFixed(0)}</strong><span>revenue</span></div>
-        <div class="low-stock-list">${lowStock.map(product => `<p><strong>${escHtml(product.title)}</strong><span>${Number(product.stock || 0)} left</span></p>`).join('') || '<p>No low-stock alerts.</p>'}</div>
+      <div class="admin-person-list">${cartDirectory || '<p class="admin-empty-cart">No registered users yet.</p>'}</div>
+      <div class="admin-table-wrap admin-user-table-wrap">
+        <table class="admin-orders-table"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Access</th></tr></thead><tbody>${userRows}</tbody></table>
       </div>
     </section>
-    <section class="admin-section">
-      <div class="admin-section-head">
-        <h3>All Orders</h3>
-        <span>${orderList.length} order${orderList.length !== 1 ? 's' : ''} across every account</span>
-      </div>
-      <div class="admin-table-wrap">
-        <table class="admin-orders-table">
-          <thead>
-            <tr>
-              <th>Order ID</th><th>User</th><th>Date</th><th>Items</th><th>Status</th><th class="admin-num">Total</th>
-            </tr>
-          </thead>
-          <tbody>${orderRows}</tbody>
-        </table>
-      </div>
-    </section>
-    <section class="admin-section">
-      <div class="admin-section-head">
-        <h3>Current Carts</h3>
-        <span>${userList.length} registered user${userList.length !== 1 ? 's' : ''}</span>
-      </div>
-      ${rows}
-    </section>`;
-  panel.innerHTML += `
-    <section class="admin-section">
+    ${userDetailPages}
+    <section class="admin-section admin-tab-panel" data-admin-tab-panel="products" hidden>
       <div class="admin-section-head"><h3>Product Manager</h3><span>Add, edit, delete, stock</span></div>
       <form class="admin-product-form" onsubmit="handleAdminProductSave(event)">
         <input name="title" placeholder="Title" required />
@@ -800,13 +863,9 @@ function renderAdminPanel(users = [], analytics = {}, orders = [], extras = {}) 
         <textarea name="description" placeholder="Description"></textarea>
         <button type="submit">Add title</button>
       </form>
-      <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>Title</th><th>Author</th><th>Price</th><th>Stock</th><th></th></tr></thead><tbody>${productRows}</tbody></table></div>
+      <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>Title</th><th>Author</th><th>Price</th><th>Stock signal</th><th></th></tr></thead><tbody>${productRows}</tbody></table></div>
     </section>
-    <section class="admin-section">
-      <div class="admin-section-head"><h3>User Manager</h3><span>Promote, demote, disable</span></div>
-      <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Access</th></tr></thead><tbody>${userRows}</tbody></table></div>
-    </section>
-    <section class="admin-section">
+    <section class="admin-section admin-tab-panel" data-admin-tab-panel="reviews" hidden>
       <div class="admin-section-head"><h3>Review Moderation</h3><span>${reviewList.length} reader notes</span></div>
       <div class="admin-table-wrap"><table class="admin-orders-table"><thead><tr><th>Title</th><th>User</th><th>Rating</th><th>Review</th><th></th></tr></thead><tbody>${reviewRows || '<tr><td colspan="5" class="admin-empty-cart">No reviews yet.</td></tr>'}</tbody></table></div>
     </section>`;

@@ -54,14 +54,14 @@
     const products = snapshot.products || [];
     const categories = snapshot.categories || [];
     const stats = useMemo(() => {
-      const available = products.filter(product => Number(product.stock || 0) > 0).length;
-      const lowStock = products.filter(product => Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 12).length;
+      const genreCount = new Set(products.map(product => product.genre_name).filter(Boolean)).size;
+      const starterShelf = products.filter(product => Number(product.goodreads_rating || 0) >= 4.2).length;
       const averageRating = products.length
         ? products.reduce((sum, product) => sum + Number(product.goodreads_rating || 0), 0) / products.length
         : 0;
       const categoryMix = categoryBreakdown(products);
       const leadingCategory = Object.entries(categoryMix).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Curated';
-      return { available, lowStock, averageRating, leadingCategory };
+      return { genreCount, starterShelf, averageRating, leadingCategory };
     }, [products]);
 
     const topBooks = useMemo(() => (
@@ -93,8 +93,8 @@
         h('button', {
           className: 'react-metric-card',
           type: 'button',
-          onClick: () => window.InkboundApp?.applyCollection?.('low'),
-        }, h('span', null, 'Stock'), h('strong', null, stats.available), h('em', null, `${stats.lowStock} low-stock`)),
+          onClick: () => window.InkboundApp?.setViewMode?.('shelf'),
+        }, h('span', null, 'Genres'), h('strong', null, stats.genreCount || 24), h('em', null, `${stats.starterShelf} rated 4.2+`)),
         h('button', {
           className: 'react-metric-card',
           type: 'button',
